@@ -25,6 +25,12 @@ class FailRunMeta(BaseRunMeta): ...
 
 
 @dataclass(frozen=True, slots=True)
+class ErrorRunMeta(FailRunMeta):
+    code: str
+    message: str
+
+
+@dataclass(frozen=True, slots=True)
 class CancelRunMeta(BaseRunMeta): ...
 
 

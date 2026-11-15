@@ -9,8 +9,10 @@ from pydantic import (
     BaseModel,
     PydanticUserError,
     TypeAdapter,
+    ValidationError,
 )
 
+from fure.core.errors import InputValidationError
 from fure.core.implementations.base import BaseImplementation
 from fure.core.types import JSONSchema, JSONValue
 
@@ -76,7 +78,10 @@ class PythonImplementation(BaseImplementation):
 
     async def execute(self, input: dict[str, JSONValue] | None) -> JSONValue:
         inspect_result = self._prepare()
-        validated_input = inspect_result.input_adapter.validate_python(input)
+        try:
+            validated_input = inspect_result.input_adapter.validate_python(input)
+        except ValidationError as error:
+            raise InputValidationError(str(error)) from error
 
         output = await inspect_result.function(input=validated_input)
 

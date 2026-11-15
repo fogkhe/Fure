@@ -2,7 +2,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -11,7 +11,10 @@ from fure.settings import settings
 
 config = context.config
 
-config.set_main_option("sqlalchemy.url", settings.database_url.get_secret_value())
+if not config.get_main_option("sqlalchemy.url"):
+    config.set_main_option(
+        "sqlalchemy.url", settings.database_url.get_secret_value().replace("%", "%%")
+    )
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -50,15 +53,28 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-
-    await connectable.dispose()
+    try:
+        async with connectable.connect() as connection:
+            if connection.dialect.name == "sqlite":
+                await connection.exec_driver_sql("BEGIN IMMEDIATE")
+            else:
+                await connection.begin()
+                await connection.execute(
+                    text("SELECT pg_advisory_xact_lock(728342198)")
+                )
+            await connection.run_sync(do_run_migrations)
+            await connection.commit()
+    finally:
+        await connectable.dispose()
 
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    asyncio.run(run_async_migrations())
+    connection = config.attributes.get("connection")
+    if connection is not None:
+        do_run_migrations(connection)
+    else:
+        asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():

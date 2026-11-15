@@ -1,0 +1,166 @@
+import asyncio
+from contextlib import asynccontextmanager
+from uuid import UUID
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from fure.core.function import Function
+from fure.core.implementations import BaseImplementation
+from fure.core.revision import Revision
+from fure.core.run import Run
+from fure.core.runners import BaseRunnerOptions
+from fure.database.mappers import implementation_to_data
+from fure.database.repositories import (
+    FunctionRepository,
+    RevisionRepository,
+    RunRepository,
+)
+from fure.services.errors import Conflict, InvalidInput, NotFound
+
+
+@asynccontextmanager
+async def transaction(session):
+    try:
+        async with session.begin():
+            yield
+    except IntegrityError as error:
+        raise Conflict(
+            "Function name is already in use or referenced state changed"
+        ) from error
+
+
+async def require_function(
+    repository: FunctionRepository, id: UUID, *, lock: bool = False
+) -> Function:
+    function = await repository.get(id, lock=lock)
+    if function is None:
+        raise NotFound("Function not found")
+    return function
+
+
+class FunctionService:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.functions = FunctionRepository(session)
+        self.revisions = RevisionRepository(session)
+
+    async def list(self, **filters) -> tuple[list[Function], int]:
+        async with transaction(self.session):
+            return await self.functions.list(**filters)
+
+    async def get(self, id: UUID) -> Function:
+        async with transaction(self.session):
+            return await require_function(self.functions, id)
+
+    async def create(
+        self, *, name: str, description: str | None = None, enabled: bool = True
+    ) -> Function:
+        function = Function(name, description, enabled=enabled)
+        async with transaction(self.session):
+            await self.functions.add(function)
+        return function
+
+    async def update(self, id: UUID, changes: dict) -> Function:
+        async with transaction(self.session):
+            function = await require_function(self.functions, id, lock=True)
+            if function.deleted:
+                raise Conflict("Undelete the function before editing it")
+            if "name" in changes:
+                function.name = changes["name"]
+            if "description" in changes:
+                function.description = changes["description"]
+            if "enabled" in changes:
+                function.enable() if changes["enabled"] else function.disable()
+            if "revision_id" in changes:
+                revision = await self.revisions.get(changes["revision_id"])
+                if revision is None:
+                    raise NotFound("Revision not found")
+                if revision.function.id != function.id:
+                    raise Conflict("Revision belongs to another function")
+                revision = Revision.restore(
+                    id=revision.id,
+                    function=function,
+                    implementation=revision.implementation,
+                    runner_options=revision.runner_options,
+                    created_at=revision.created_at,
+                )
+                function.revision = revision
+            await self.functions.save(function)
+        return function
+
+    async def delete(self, id: UUID) -> None:
+        async with transaction(self.session):
+            function = await require_function(self.functions, id, lock=True)
+            function.delete()
+            await self.functions.save(function)
+
+    async def undelete(self, id: UUID) -> Function:
+        async with transaction(self.session):
+            function = await require_function(self.functions, id, lock=True)
+            function.undelete()
+            await self.functions.save(function)
+        return function
+
+
+class RevisionService:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.revisions = RevisionRepository(session)
+        self.functions = FunctionRepository(session)
+
+    async def list(self, **filters) -> tuple[list[Revision], int]:
+        async with transaction(self.session):
+            return await self.revisions.list(**filters)
+
+    async def get(self, id: UUID) -> Revision:
+        async with transaction(self.session):
+            revision = await self.revisions.get(id)
+            if revision is None:
+                raise NotFound("Revision not found")
+            return revision
+
+    async def create(
+        self,
+        *,
+        function_id: UUID,
+        implementation: BaseImplementation,
+        runner_options: BaseRunnerOptions,
+    ) -> Revision:
+        async with transaction(self.session):
+            function = await require_function(self.functions, function_id)
+            if function.deleted:
+                raise Conflict("Function is deleted")
+        try:
+            # User definitions are analyzed explicitly on creation, never on reads.
+            # Keep module initialization off the API event loop and outside a DB transaction.
+            await asyncio.to_thread(implementation_to_data, implementation)
+        except (Exception, SystemExit, KeyboardInterrupt) as error:
+            raise InvalidInput("Invalid implementation definition") from error
+        async with transaction(self.session):
+            function = await require_function(self.functions, function_id, lock=True)
+            if function.deleted:
+                raise Conflict("Function is deleted")
+            try:
+                revision = Revision(implementation, runner_options, function)
+            except TypeError as error:
+                raise InvalidInput(str(error)) from error
+            await self.revisions.add(revision)
+        return revision
+
+
+class RunService:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.runs = RunRepository(session)
+
+    async def list(self, **filters) -> tuple[list[Run], int]:
+        async with transaction(self.session):
+            return await self.runs.list(**filters)
+
+    async def get(self, id: UUID) -> Run:
+        async with transaction(self.session):
+            run = await self.runs.get(id)
+            if run is None:
+                raise NotFound("Run not found")
+            return run
