@@ -1,0 +1,194 @@
+<script setup lang="ts">
+import type { RunRecord, FunctionRecord } from '~/types/api'
+
+const route = useRoute()
+const api = useApi()
+const toast = useToast()
+const id = String(route.params.id)
+const { data: record, error, status, refresh } = await useAsyncData(`run-${id}`, () => api<RunRecord>(`/runs/${encodeURIComponent(id)}`), { server: false })
+useSeoMeta({ title: `Запуск #${shortId(id)}` })
+const names = useState<Record<string, string>>('function-names', () => ({}))
+watch(() => record.value?.function_id, async (functionId) => {
+  if (functionId && !names.value[functionId]) {
+    try {
+      names.value[functionId] = (await api<FunctionRecord>(`/functions/${functionId}`)).name
+    } catch { /* The history remains available without the function. */
+    }
+  }
+}, { immediate: true })
+const active = computed(() => record.value && ['pending', 'running'].includes(record.value.status))
+const confirming = ref(false)
+const cancelling = ref(false)
+async function cancel() {
+  if (cancelling.value)
+    return
+  cancelling.value = true
+  try {
+    await api(`/runs/${id}/cancel`, { method: 'POST' })
+    confirming.value = false
+    await refresh()
+  } catch (problem) {
+    toast.add({ title: 'Не удалось отменить запуск', description: errorMessage(problem), color: 'error' })
+    await refresh()
+  } finally {
+    cancelling.value = false
+  }
+}
+let timer: ReturnType<typeof setInterval>
+onMounted(() => {
+  timer = setInterval(() => {
+    if (active.value && document.visibilityState === 'visible')
+      refresh()
+  }, 2000)
+})
+onBeforeUnmount(() => clearInterval(timer))
+</script>
+
+<template>
+  <UContainer class="py-8 sm:py-12">
+    <UBreadcrumb
+      :items="[{ label: 'Запуски', to: '/runs' }, { label: `#${shortId(id)}` }]"
+      class="mb-7"
+    />
+    <PageError
+      v-if="error"
+      :error="error"
+      @retry="refresh()"
+    />
+    <div
+      v-if="record"
+      class="space-y-7"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-3">
+            <h1 class="text-3xl font-semibold tracking-tight text-highlighted">
+              Запуск <span class="font-mono">#{{ shortId(id) }}</span>
+            </h1><StatusBadge :status="record.status" />
+          </div><NuxtLink
+            :to="`/functions/${record.function_id}`"
+            class="mt-3 inline-flex items-center gap-2 text-primary hover:underline"
+          ><UIcon name="i-lucide-square-function" />{{ names[record.function_id] || record.function_id }}</NuxtLink>
+        </div><div class="flex gap-2">
+          <UButton
+            v-if="active"
+            label="Отменить запуск"
+            icon="i-lucide-square"
+            color="error"
+            variant="soft"
+            @click="confirming = true"
+          /><UButton
+            icon="i-lucide-refresh-cw"
+            aria-label="Обновить запуск"
+            color="neutral"
+            variant="outline"
+            :loading="status === 'pending'"
+            @click="refresh()"
+          />
+        </div>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <UCard>
+          <p class="text-xs text-muted">
+            Длительность
+          </p><p class="mt-2 text-lg font-semibold text-highlighted">
+            {{ formatDuration(record.duration) }}
+          </p>
+        </UCard><UCard>
+          <p class="text-xs text-muted">
+            Создан
+          </p><p class="mt-2 text-sm text-highlighted">
+            {{ formatDate(record.created_at) }}
+          </p>
+        </UCard><UCard>
+          <p class="text-xs text-muted">
+            Начало выполнения
+          </p><p class="mt-2 text-sm text-highlighted">
+            {{ formatDate(record.started_at) }}
+          </p>
+        </UCard><UCard>
+          <p class="text-xs text-muted">
+            Завершён
+          </p><p class="mt-2 text-sm text-highlighted">
+            {{ formatDate(record.finished_at) }}
+          </p>
+        </UCard>
+      </div>
+      <UAlert
+        v-if="record.status === 'failed'"
+        color="error"
+        icon="i-lucide-circle-alert"
+        :title="record.meta?.code || 'Ошибка выполнения'"
+        :description="record.meta?.message || 'Подробности недоступны.'"
+      />
+      <div class="grid items-start gap-6 lg:grid-cols-2">
+        <JsonView
+          :value="record.input"
+          title="Входные данные"
+        /><JsonView
+          :value="record.output"
+          title="Результат"
+          :text="record.status === 'succeeded'"
+        />
+      </div>
+      <JsonView
+        v-if="record.meta && Object.keys(record.meta).length"
+        :value="record.meta"
+        title="Метаданные"
+      />
+      <UCard>
+        <dl class="grid gap-4 text-sm sm:grid-cols-2">
+          <div>
+            <dt class="text-muted">
+              ID запуска
+            </dt><dd class="mt-1 font-mono break-all">
+              {{ record.id }}
+            </dd>
+          </div><div>
+            <dt class="text-muted">
+              Версия реализации
+            </dt><dd class="mt-1">
+              <NuxtLink
+                :to="`/functions/${record.function_id}?tab=revisions&revision_id=${record.revision_id}`"
+                class="font-mono break-all text-primary hover:underline"
+              >{{ record.revision_id }}</NuxtLink>
+            </dd>
+          </div>
+        </dl><UButton
+          class="mt-4"
+          :to="`/runs?revision_id=${record.revision_id}`"
+          label="Все запуски этой версии"
+          trailing-icon="i-lucide-arrow-right"
+          variant="link"
+        />
+      </UCard>
+    </div>
+    <USkeleton
+      v-else-if="status === 'pending'"
+      class="h-96 rounded-xl"
+    />
+    <UModal
+      v-model:open="confirming"
+      title="Отменить запуск?"
+      description="Выполнение будет прервано, запись останется в истории."
+      :dismissible="!cancelling"
+    >
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton
+            label="Назад"
+            color="neutral"
+            variant="ghost"
+            :disabled="cancelling"
+            @click="confirming = false"
+          /><UButton
+            label="Отменить запуск"
+            color="error"
+            :loading="cancelling"
+            @click="cancel"
+          />
+        </div>
+      </template>
+    </UModal>
+  </UContainer>
+</template>
