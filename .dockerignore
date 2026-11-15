@@ -228,6 +228,14 @@ __marimo__/
 Dockerfile
 compose.yaml
 
+# The frontend has its own build context and runtime image.
+frontend/
+.env.*
+.github/
+.agents/
+.codex/
+.aws/
+
 # Git
 .git
 .gitattributes
