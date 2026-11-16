@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     database_auto_migrate: bool = True
     execution_heartbeat_interval: float = Field(default=1, gt=0, allow_inf_nan=False)
     execution_lease_seconds: float = Field(default=30, ge=10, allow_inf_nan=False)
+    session_lifetime_seconds: int = Field(default=604800, ge=60)
+    session_cookie_secure: bool = False
 
     @model_validator(mode="after")
     def validate_lease(self) -> Self:

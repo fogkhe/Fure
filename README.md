@@ -38,6 +38,18 @@ its health check. The Nuxt proxy connects to `http://app:8000` inside the Docker
 network; browser requests use the frontend address, without CORS configuration.
 The production frontend image contains only the built Nuxt server and assets.
 
+Create the first administrator, then sign in to the workspace:
+
+```sh
+docker compose exec app python -m fure.cli create-admin admin
+```
+
+The command prompts for a password (12–256 characters) and works only before the
+first user exists. For local development use `uv run python -m fure.cli create-admin admin`.
+Create subsequent users and roles in the interface. There is no public registration.
+Existing functions become private after migration; previous history is retained
+and is available to administrators.
+
 PostgreSQL data is kept in the `database_data` named volume; runtime files are
 kept in `app_data`. `docker compose down` stops the stack and preserves both.
 Use `docker compose logs -f` to view logs.
@@ -46,3 +58,7 @@ To change the published ports, set `FRONTEND_PORT` and `API_PORT` in the root
 `.env` file (defaults: 3000 and 8000). Compose supplies the internal database URL
 and Nuxt API address directly; the local-development `DATABASE_URL` and
 `frontend/.env` are not used by the containers.
+
+When serving the workspace over HTTPS, set `SESSION_COOKIE_SECURE=true` in the
+root `.env` and recreate the app container. Authentication, API-key scopes,
+public execution and manual JSON extraction are described in [access control](docs/auth.md).

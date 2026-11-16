@@ -1,10 +1,12 @@
 import asyncio
 import json
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 
 import httpx2
 from jinja2 import UndefinedError
+from jsonschema.exceptions import ValidationError
 from openai import APITimeoutError, AsyncOpenAI, BadRequestError
 
 from fure.core.implementations import JinjaImplementation
@@ -212,6 +214,67 @@ class OpenAIJinjaRunnerTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(ValueError, "invalid JSON"):
             await self.runner.run(implementation, None)
+
+    async def test_manual_output_sends_schema_instruction_without_response_format(self):
+        schema = {
+            "type": "object",
+            "properties": {"answer": {"type": "integer"}},
+            "required": ["answer"],
+        }
+        implementation = JinjaImplementation("Answer!", schema)
+        self.response["choices"][0]["message"]["content"] = (
+            '<think>{"draft": 1}</think>\n```json\n{"answer": 42}\n```'
+        )
+        options = replace(
+            self.options, structured_outputs=False, reasoning_end_tags=("</think>",)
+        )
+        result = await self.runner.run(implementation, None, options)
+        self.assertEqual(result.output, {"answer": 42})
+        self.assertEqual(result.meta.total_tokens, 8)
+        sent = json.loads(self.requests[0].content)
+        self.assertNotIn("response_format", sent)
+        self.assertIn(
+            json.dumps(schema, ensure_ascii=False), sent["messages"][0]["content"]
+        )
+
+    async def test_both_json_modes_validate_the_schema_and_reject_ambiguous_output(
+        self,
+    ):
+        implementation = JinjaImplementation(
+            "Answer!",
+            {
+                "type": "object",
+                "properties": {"answer": {"type": "integer"}},
+                "required": ["answer"],
+            },
+        )
+        for structured in (True, False):
+            options = replace(self.options, structured_outputs=structured)
+            self.response["choices"][0]["message"]["content"] = (
+                '{"answer": "wrong type"}'
+            )
+            with (
+                self.subTest(structured=structured),
+                self.assertRaises(ValidationError),
+            ):
+                await self.runner.run(implementation, None, options)
+            self.response["choices"][0]["message"]["content"] = (
+                '{"answer": 1} {"answer": 2}'
+            )
+            with self.assertRaises(ValueError):
+                await self.runner.run(implementation, None, options)
+
+    async def test_manual_mode_empty_schema_keeps_plain_text(self):
+        self.response["choices"][0]["message"]["content"] = "<think>draft</think>hello"
+        result = await self.runner.run(
+            JinjaImplementation("Hello!", {}),
+            None,
+            replace(
+                self.options, structured_outputs=False, reasoning_end_tags=("</think>",)
+            ),
+        )
+        self.assertEqual(result.output, "<think>draft</think>hello")
+        self.assertNotIn("response_format", json.loads(self.requests[0].content))
 
     async def test_recursive_references_and_boolean_data_are_preserved(self):
         schema = {

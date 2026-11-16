@@ -94,6 +94,7 @@ def function_from_row(row: FunctionRow, *, include_revision=True) -> Function:
         description=row.description,
         revision=None,
         enabled=row.enabled,
+        public=row.public,
         created_at=row.created_at,
         updated_at=row.updated_at,
         deleted_at=row.deleted_at,
@@ -123,6 +124,8 @@ def run_from_row(row: RunRow) -> Run:
     return Run.restore(
         id=row.id,
         revision=revision_from_row(row.revision),
+        user_id=row.user_id,
+        api_key_id=row.api_key_id,
         input=row.input,
         status=RunStatus(row.status),
         output=row.output,

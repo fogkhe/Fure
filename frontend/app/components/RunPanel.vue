@@ -5,6 +5,7 @@ const props = defineProps<{
   record: FunctionRecord
 }>()
 const api = useApi()
+const auth = useAuth()
 const initialInput = ref(JSON.stringify(sampleInput(props.record.input_schema), null, 2))
 const input = ref(initialInput.value)
 const running = ref(false)
@@ -105,7 +106,7 @@ onBeforeUnmount(() => controller?.abort())
               label="Запустить"
               icon="i-lucide-play"
               :loading="running"
-              :disabled="!record.runnable"
+              :disabled="!record.runnable || (!record.public && !auth.can('functions.run'))"
             /><UButton
               label="Входная схема"
               color="neutral"
@@ -121,7 +122,10 @@ onBeforeUnmount(() => controller?.abort())
           />
         </form>
         <template #footer>
-          <p class="text-xs text-muted">
+          <p
+            v-if="auth.can('runs.read')"
+            class="text-xs text-muted"
+          >
             Активные запуски можно отменить в <NuxtLink
               :to="`/runs?function_id=${record.id}`"
               class="text-primary hover:underline"
@@ -169,7 +173,7 @@ onBeforeUnmount(() => controller?.abort())
           class="min-h-72 border border-dashed border-default"
         />
         <UButton
-          v-if="runId"
+          v-if="runId && auth.can('runs.read')"
           :to="`/runs/${runId}`"
           label="Открыть запись запуска"
           icon="i-lucide-arrow-up-right"

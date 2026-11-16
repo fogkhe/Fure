@@ -9,15 +9,16 @@ const emit = defineEmits<{
   changed: []
 }>()
 const api = useApi()
+const auth = useAuth()
 const toast = useToast()
-const state = reactive({ name: '', description: '', enabled: true })
+const state = reactive({ name: '', description: '', enabled: true, public: false })
 const original = ref('')
 const saving = ref(false)
 const deleting = ref(false)
 const error = ref('')
 const dirty = computed(() => JSON.stringify(state) !== original.value)
 function reset(value: FunctionRecord) {
-  Object.assign(state, { name: value.name, description: value.description || '', enabled: value.enabled })
+  Object.assign(state, { name: value.name, description: value.description || '', enabled: value.enabled, public: value.public })
   original.value = JSON.stringify(state)
 }
 reset(props.record)
@@ -37,7 +38,7 @@ async function save() {
   saving.value = true
   error.value = ''
   try {
-    const updated = await api<FunctionRecord>(`/functions/${props.record.id}`, { method: 'PATCH', body: { name: state.name, description: state.description || null, enabled: state.enabled } })
+    const updated = await api<FunctionRecord>(`/functions/${props.record.id}`, { method: 'PATCH', body: { name: state.name, description: state.description || null, enabled: state.enabled, ...(state.public !== props.record.public ? { public: state.public } : {}) } })
     reset(updated)
     emit('changed')
     toast.add({ title: 'Настройки сохранены', icon: 'i-lucide-check', color: 'success' })
@@ -80,7 +81,7 @@ async function changeDeletion(restore = false) {
       description="Версии и история сохранены. Восстановите функцию, чтобы редактировать и запускать её."
       color="warning"
       icon="i-lucide-archive"
-      :actions="[{ label: 'Восстановить', onClick: () => changeDeletion(true), loading: saving }]"
+      :actions="auth.can('functions.delete') ? [{ label: 'Восстановить', onClick: () => changeDeletion(true), loading: saving }] : []"
     />
     <UCard>
       <template #header>
@@ -91,7 +92,7 @@ async function changeDeletion(restore = false) {
       <UForm
         :state="state"
         :validate="validate"
-        :disabled="saving || record.deleted"
+        :disabled="saving || record.deleted || !auth.can('functions.update')"
         class="space-y-5"
         @submit="save"
       >
@@ -125,12 +126,24 @@ async function changeDeletion(restore = false) {
           type="submit"
           label="Сохранить изменения"
           icon="i-lucide-check"
-          :disabled="!dirty || record.deleted"
+          :disabled="!dirty || record.deleted || !auth.can('functions.update')"
           :loading="saving"
         />
+        <USwitch
+          v-model="state.public"
+          label="Публичный запуск"
+          description="Любой, кто знает имя функции, сможет вызвать её без API-ключа. Исходники и история остаются закрытыми."
+          :disabled="!auth.can('functions.publish') || !auth.can('functions.update') || record.deleted || saving"
+        />
+        <p
+          v-if="record.public"
+          class="font-mono text-xs break-all text-muted"
+        >
+          POST /v1/run/{{ record.name }}
+        </p>
       </UForm>
     </UCard>
-    <UCard v-if="!record.deleted">
+    <UCard v-if="!record.deleted && auth.can('functions.delete')">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 class="font-medium text-highlighted">

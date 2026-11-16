@@ -9,6 +9,7 @@ from jinja2 import UndefinedError
 from openai import APIError, APITimeoutError
 from sqlalchemy import and_, or_, select, update
 
+from fure.core.auth import Permission, Principal
 from fure.core.errors import InputValidationError
 from fure.core.run import CancelRunMeta, ErrorRunMeta, Run, RunStatus
 from fure.core.runners import (
@@ -30,9 +31,11 @@ from fure.services.errors import (
     ExecutionCancelled,
     ExecutionFailed,
     ExecutionTimedOut,
+    Forbidden,
     InvalidInput,
     NotFound,
     ProviderFailed,
+    Unauthorized,
     Unavailable,
 )
 
@@ -94,17 +97,33 @@ class ExecutionService:
                         len(pending),
                     )
 
-    async def execute(self, name: str, input: dict[str, JSONValue] | None) -> Run:
+    async def execute(
+        self,
+        name: str,
+        input: dict[str, JSONValue] | None,
+        *,
+        principal: Principal | None = None,
+    ) -> Run:
         if self._closing:
             raise Unavailable("Application is shutting down")
         async with self.database.sessions.begin() as session:
             function = await FunctionRepository(session).by_name(name, lock=True)
             if function is None:
                 raise NotFound("Function not found or deleted")
+            if not function.public:
+                if principal is None:
+                    raise Unauthorized("Authentication required")
+                if not principal.allows(Permission.FUNCTIONS_RUN):
+                    raise Forbidden("Permission required: functions.run")
             revision = function.revision
             if not function.runnable or revision is None:
                 raise Conflict("Function is disabled or has no current revision")
-            run = Run(revision, input)
+            run = Run(
+                revision,
+                input,
+                user_id=principal.user.id if principal else None,
+                api_key_id=principal.key_id if principal else None,
+            )
             await RunRepository(session).add(run, self.worker_id)
         if self._closing:
             await self._cancel_record(run.id)
@@ -138,7 +157,19 @@ class ExecutionService:
         if not task.cancelled():
             task.exception()
 
-    async def cancel(self, id: UUID) -> Run:
+    async def cancel(self, id: UUID, *, principal: Principal) -> Run:
+        async with self.database.sessions() as session:
+            row = await session.get(RunRow, id)
+            if row is None:
+                raise NotFound("Run not found")
+            if row.user_id == principal.user.id:
+                if not principal.allows(Permission.RUNS_CANCEL):
+                    raise Forbidden("Permission required: runs.cancel")
+            elif not (
+                principal.allows(Permission.RUNS_CANCEL_ALL)
+                and principal.allows(Permission.RUNS_READ_ALL)
+            ):
+                raise NotFound("Run not found")
         await self._cancel_record(id, require_active=True)
         task = self._tasks.get(id)
         if task is not None:

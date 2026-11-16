@@ -14,6 +14,7 @@ export interface FunctionRecord {
   description: string | null
   revision_id: string | null
   enabled: boolean
+  public: boolean
   deleted: boolean
   runnable: boolean
   input_schema: JsonObject
@@ -29,7 +30,7 @@ export type Implementation
 
 export type RunnerOptions
   = | { type: 'inline_python', timeout: number | null }
-    | { type: 'openai_jinja', timeout: number | null, base_url: string, model: string }
+    | { type: 'openai_jinja', timeout: number | null, base_url: string, model: string, structured_outputs: boolean, reasoning_end_tags: string[] }
 
 export interface RevisionRecord {
   id: string
@@ -50,6 +51,8 @@ export interface RunRecord {
   id: string
   function_id: string
   revision_id: string
+  user_id: string | null
+  api_key_id: string | null
   input: JsonObject | null
   status: RunStatus
   output: JsonValue
@@ -59,4 +62,40 @@ export interface RunRecord {
   finished_at: string | null
   created_at: string
   updated_at: string
+}
+
+export interface RoleRecord {
+  id: string
+  name: string
+  permissions: string[]
+  protected: boolean
+  created_at: string
+}
+
+export interface UserRecord {
+  id: string
+  username: string
+  enabled: boolean
+  role_ids: string[]
+  roles: RoleRecord[]
+  permissions: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface SessionRecord {
+  user: UserRecord
+  permissions: string[]
+  csrf_token: string | null
+}
+
+export interface APIKeyRecord {
+  id: string
+  user_id: string
+  name: string
+  prefix: string
+  permissions: string[]
+  created_at: string
+  expires_at: string | null
+  revoked_at: string | null
 }

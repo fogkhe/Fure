@@ -7,12 +7,18 @@ Routes are backed by SQLAlchemy repositories and application services. `/health`
 checks database connectivity and returns `200` with `{"status": "ok"}`. An unavailable
 database returns `503`.
 
+All catalogue/history operations require authentication and permissions.
+Use a browser session or `Authorization: Bearer <API key>`. Only functions marked
+`public` can run anonymously. See [users, roles and API keys](auth.md) for setup,
+management endpoints, scopes and CSRF headers. Read examples below assume an
+administrator session or a key with the corresponding permissions.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/v1/functions` | List functions; filter by `name`, `enabled`, `deleted` |
 | POST | `/v1/functions` | Create a function without an implementation |
 | GET | `/v1/functions/{function_id}` | Get a function and its current schemas |
-| PATCH | `/v1/functions/{function_id}` | Change name, description, enabled flag or current revision |
+| PATCH | `/v1/functions/{function_id}` | Change name, description, enabled/public flags or current revision |
 | DELETE | `/v1/functions/{function_id}` | Soft-delete a function, retaining history |
 | POST | `/v1/functions/{function_id}/undelete` | Clear the deletion marker |
 | GET | `/v1/revisions` | List revisions; filter by `function_id` |
@@ -61,8 +67,10 @@ default; `deleted=true` selects deleted functions.
    `{"type": "inline_python", "timeout": 10}`. Their schemas are derived from
    annotations; clients cannot override them. Jinja derives its input schema from
    the template and accepts an output schema. Empty output schemas use text output;
-   nonempty schemas are sent to the LLM provider unchanged with Structured Outputs.
-   API keys are accepted only in creation requests and omitted from revision responses.
+   nonempty schemas use Structured Outputs by default. Set `structured_outputs: false`
+   in runner options to extract and validate JSON manually; `reasoning_end_tags: []`
+   configures optional reasoning removal. Provider API keys are accepted only in
+   creation requests and omitted from revision responses.
 
 3. `PATCH /v1/functions/{function_id}` to select the returned revision:
 
@@ -105,6 +113,9 @@ Resource creation returns `201`; soft deletion returns `204` with no body.
 Reads, updates, undeletion, cancellation and successful execution return `200`.
 Missing resources return `404`; name collisions and invalid resource state return
 `409`. Invalid request fields return FastAPI's `422` validation response.
+Missing/invalid credentials return `401`, insufficient permissions or invalid CSRF
+tokens return `403`. Validation responses omit original input values to avoid
+echoing passwords or keys.
 Execution timeouts return `504`; LLM provider failures return `502`.
 Other execution failures return `500`. Database unavailability and shutdown return
 `503`. Errors use `{"detail": "..."}`; request validation errors have a list in

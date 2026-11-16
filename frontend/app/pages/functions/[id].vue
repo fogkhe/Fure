@@ -4,6 +4,7 @@ import type { FunctionRecord, RevisionRecord } from '~/types/api'
 const route = useRoute()
 const router = useRouter()
 const api = useApi()
+const auth = useAuth()
 const toast = useToast()
 const id = String(route.params.id)
 const { data: record, error, status, refresh } = await useAsyncData(`function-${id}`, () => api<FunctionRecord>(`/functions/${encodeURIComponent(id)}`), { server: false })
@@ -13,8 +14,13 @@ watch(record, (value) => {
   if (value)
     names.value[value.id] = value.name
 })
-const tabs = [{ label: 'Запустить', value: 'run', icon: 'i-lucide-play' }, { label: 'Версии', value: 'revisions', icon: 'i-lucide-git-branch' }, { label: 'История', value: 'history', icon: 'i-lucide-history' }, { label: 'Настройки', value: 'settings', icon: 'i-lucide-settings-2' }]
-const tab = computed({ get: () => tabs.some(item => item.value === route.query.tab) ? String(route.query.tab) : 'run', set: (value: string) => {
+const tabs = computed(() => [
+  ...(auth.can('functions.run') || record.value?.public ? [{ label: 'Запустить', value: 'run', icon: 'i-lucide-play' }] : []),
+  { label: 'Версии', value: 'revisions', icon: 'i-lucide-git-branch' },
+  ...(auth.can('runs.read') ? [{ label: 'История', value: 'history', icon: 'i-lucide-history' }] : []),
+  ...(auth.can('functions.update') || auth.can('functions.delete') ? [{ label: 'Настройки', value: 'settings', icon: 'i-lucide-settings-2' }] : [])
+])
+const tab = computed({ get: () => tabs.value.some(item => item.value === route.query.tab) ? String(route.query.tab) : tabs.value[0]!.value, set: (value: string) => {
   router.replace({ query: { ...route.query, tab: value } })
 } })
 const editor = ref(false)
@@ -25,7 +31,7 @@ function create(initial: RevisionRecord | null = null) {
   editor.value = true
 }
 watch(record, (value) => {
-  if (value && route.query.newRevision === '1' && !value.deleted) {
+  if (value && route.query.newRevision === '1' && !value.deleted && auth.can('functions.update')) {
     create()
     router.replace({ query: { tab: 'revisions' } })
   }
@@ -70,7 +76,7 @@ const functionStatus = computed(() => record.value?.deleted ? 'deleted' : !recor
           </p>
         </div>
         <UButton
-          v-if="!record.deleted"
+          v-if="!record.deleted && auth.can('functions.update')"
           label="Новая версия"
           icon="i-lucide-plus"
           variant="soft"

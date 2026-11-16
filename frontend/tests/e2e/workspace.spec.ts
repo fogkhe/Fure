@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, login } from './fixtures'
 import type { APIRequestContext, Page } from '@playwright/test'
 
 const python = 'from pydantic import BaseModel\n\nclass Input(BaseModel):\n    name: str\n\nasync def function(input: Input) -> str:\n    return f"Hello, {input.name}!"\n'
@@ -18,6 +18,10 @@ async function run(page: Page) {
   await page.getByRole('tab', { name: 'Запустить', exact: true }).click()
   await page.getByRole('button', { name: 'Запустить', exact: true }).click()
 }
+
+test.beforeEach(async ({ context }) => {
+  await login(context.request)
+})
 
 test('create, version, execute, rename, delete and restore a function', async ({ page }, info) => {
   const errors: string[] = []
@@ -127,6 +131,8 @@ test('Jinja editor derives input schema and stores structured output options', a
   expect(revision.implementation.input_schema.properties).toHaveProperty('name')
   expect(revision.implementation.output_schema).toEqual(schema)
   expect(revision.runner_options).not.toHaveProperty('api_key')
+  expect(revision.runner_options.structured_outputs).toBe(true)
+  expect(revision.runner_options.reasoning_end_tags).toEqual([])
   await expect(dialog).not.toBeVisible()
   await page.getByRole('button', { name: 'Новая версия', exact: true }).click()
   await expect(page.getByLabel('API ключ', { exact: true })).toHaveValue('')

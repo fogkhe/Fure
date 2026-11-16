@@ -28,6 +28,8 @@ services:
     stop_grace_period: 30s
     environment:
       DATABASE_URL: postgresql+asyncpg://fure:fure@database:5432/fure
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
+      SESSION_LIFETIME_SECONDS: "${SESSION_LIFETIME_SECONDS:-604800}"
     volumes:
       - app_data:/app/data
     ports:

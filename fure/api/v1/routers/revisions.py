@@ -1,9 +1,9 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Path, Query, status
+from fastapi import APIRouter, Body, Depends, Path, Query, status
 
-from fure.api.dependencies import RevisionServiceDep
+from fure.api.dependencies import RevisionServiceDep, require_permission
 from fure.api.v1.presenters import revision_response
 from fure.api.v1.schemas import (
     ErrorResponse,
@@ -12,6 +12,7 @@ from fure.api.v1.schemas import (
     RevisionListRequest,
     RevisionResponse,
 )
+from fure.core.auth import Permission
 from fure.core.implementations import JinjaImplementation, PythonImplementation
 from fure.core.runners.jinja.openai import OpenAIJinjaRunnerOptions
 from fure.core.runners.python.inline import InlinePythonRunnerOptions
@@ -20,7 +21,11 @@ from fure.services.errors import InvalidInput
 router = APIRouter()
 
 
-@router.get("", summary="List revisions")
+@router.get(
+    "",
+    summary="List revisions",
+    dependencies=[Depends(require_permission(Permission.FUNCTIONS_READ))],
+)
 async def list_revisions(
     request: Annotated[RevisionListRequest, Query()],
     service: RevisionServiceDep,
@@ -39,6 +44,7 @@ async def list_revisions(
     "",
     status_code=status.HTTP_201_CREATED,
     summary="Create an immutable revision",
+    dependencies=[Depends(require_permission(Permission.FUNCTIONS_UPDATE))],
     responses={
         404: {"model": ErrorResponse, "description": "Function not found"},
         409: {"model": ErrorResponse, "description": "Function is deleted"},
@@ -76,6 +82,8 @@ async def create_revision(
             else None,
             base_url=str(options.base_url),
             model=options.model,
+            structured_outputs=options.structured_outputs,
+            reasoning_end_tags=tuple(options.reasoning_end_tags),
         )
     return revision_response(
         await service.create(
@@ -89,6 +97,7 @@ async def create_revision(
 @router.get(
     "/{revision_id}",
     summary="Get a revision",
+    dependencies=[Depends(require_permission(Permission.FUNCTIONS_READ))],
     responses={404: {"model": ErrorResponse, "description": "Revision not found"}},
 )
 async def get_revision(

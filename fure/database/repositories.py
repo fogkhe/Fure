@@ -93,6 +93,7 @@ class FunctionRepository:
                 description=function.description,
                 revision_id=function.revision.id if function.revision else None,
                 enabled=function.enabled,
+                public=function.public,
                 created_at=function.created_at,
                 updated_at=function.updated_at,
                 deleted_at=function.deleted_at,
@@ -114,6 +115,7 @@ class FunctionRepository:
                 description=function.description,
                 revision_id=function.revision.id if function.revision else None,
                 enabled=function.enabled,
+                public=function.public,
                 updated_at=function.updated_at,
                 deleted_at=function.deleted_at,
                 version=version + 1,
@@ -177,9 +179,18 @@ class RunRepository:
         return None if row is None else run_from_row(row)
 
     async def list(
-        self, *, page, size, function_id=None, revision_id=None, status=None
+        self,
+        *,
+        page,
+        size,
+        function_id=None,
+        revision_id=None,
+        status=None,
+        user_id=None,
     ):
         filters = []
+        if user_id is not None:
+            filters.append(RunRow.user_id == user_id)
         if function_id is not None:
             filters.append(RevisionRow.function_id == function_id)
         if revision_id is not None:
@@ -203,6 +214,8 @@ class RunRepository:
             RunRow(
                 id=run.id,
                 revision_id=run.revision.id,
+                user_id=run.user_id,
+                api_key_id=run.api_key_id,
                 input=run.input,
                 status=run.status.value,
                 output=run.output,

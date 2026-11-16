@@ -22,7 +22,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `"${python}" -m uvicorn fure.api:app --host 127.0.0.1 --port 8011`,
+      command: `"${python}" -m tests.e2e_server`,
       cwd: root,
       env: { DATABASE_URL: `sqlite+aiosqlite:///${database}` },
       url: 'http://127.0.0.1:8011/health',

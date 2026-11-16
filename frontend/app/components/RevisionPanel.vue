@@ -10,6 +10,7 @@ const emit = defineEmits<{
   changed: []
 }>()
 const api = useApi()
+const auth = useAuth()
 const toast = useToast()
 const page = ref(1)
 const selected = ref<RevisionRecord | null>(null)
@@ -56,7 +57,7 @@ async function activate() {
           Сохранённый код неизменяем. Для правок создайте новую версию.
         </p>
       </div><UButton
-        v-if="!record.deleted"
+        v-if="!record.deleted && auth.can('functions.update')"
         label="Новая версия"
         icon="i-lucide-plus"
         variant="soft"
@@ -77,7 +78,7 @@ async function activate() {
       icon="i-lucide-git-branch"
       title="Пока нет реализаций"
       description="Добавьте Python-код или Jinja-шаблон, чтобы функция стала готова к запуску."
-      :actions="record.deleted ? [] : [{ label: 'Добавить реализацию', icon: 'i-lucide-plus', onClick: () => emit('create', null) }]"
+      :actions="record.deleted || !auth.can('functions.update') ? [] : [{ label: 'Добавить реализацию', icon: 'i-lucide-plus', onClick: () => emit('create', null) }]"
       class="border border-dashed border-default"
     />
     <div
@@ -127,14 +128,14 @@ async function activate() {
           <div class="flex flex-wrap items-center justify-between gap-3">
             <span class="font-mono text-sm text-highlighted">#{{ shortId(selected.id) }}</span><div class="flex gap-2">
               <UButton
-                v-if="selected.id !== record.revision_id && !record.deleted"
+                v-if="selected.id !== record.revision_id && !record.deleted && auth.can('functions.update')"
                 label="Выбрать текущей"
                 icon="i-lucide-check"
                 size="sm"
                 :loading="selecting"
                 @click="activate"
               /><UButton
-                v-if="!record.deleted"
+                v-if="!record.deleted && auth.can('functions.update')"
                 label="На основе этой"
                 icon="i-lucide-copy-plus"
                 color="neutral"

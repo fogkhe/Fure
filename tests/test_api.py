@@ -11,6 +11,7 @@ from fure.api.app import create_app
 from fure.core.implementations import PythonImplementation
 from fure.core.runners import OpenAIJinjaRunMeta, RunResult
 from fure.settings import Settings
+from tests.auth_support import bootstrap, login
 from tests.database_support import isolated_database
 
 MISSING_ID = "01900000-0000-7000-8000-000000000099"
@@ -25,6 +26,7 @@ class APITests(unittest.TestCase):
         )
         self.app = create_app(self.settings)
         self.client = self.enterContext(TestClient(self.app))
+        bootstrap(self.client)
 
     def function(self, name="greet", **fields):
         response = self.client.post("/v1/functions", json={"name": name, **fields})
@@ -362,6 +364,7 @@ class APITests(unittest.TestCase):
                 side_effect=AssertionError("read executed code"),
             ),
         ):
+            login(other)
             for path in (
                 "/v1/functions",
                 f"/v1/functions/{function['id']}",
@@ -392,6 +395,7 @@ class APITests(unittest.TestCase):
             TestClient(create_app(self.settings)) as other,
             ThreadPoolExecutor(max_workers=1) as pool,
         ):
+            login(other)
             future = pool.submit(self.client.post, "/v1/run/greet", json={})
             id = self._wait_running(other)
             cancelled = other.post(f"/v1/runs/{id}/cancel")

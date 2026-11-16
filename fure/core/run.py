@@ -44,6 +44,7 @@ class RunStatus(StrEnum):
 
 class Run:
     __slots__ = (
+        "_api_key_id",
         "_created_at",
         "_duration",
         "_finished_at",
@@ -55,6 +56,7 @@ class Run:
         "_started_at",
         "_status",
         "_updated_at",
+        "_user_id",
     )
 
     def __init__(
@@ -63,6 +65,8 @@ class Run:
         input: dict[str, JSONValue] | None,
         *,
         id: UUID | None = None,
+        user_id: UUID | None = None,
+        api_key_id: UUID | None = None,
         status: RunStatus | None = None,
         output: JSONValue | None = None,
         meta: BaseRunMeta | None = None,
@@ -73,6 +77,8 @@ class Run:
         updated_at: datetime | None = None,
     ) -> None:
         self._id = id if id is not None else uuid7()
+        self._user_id = user_id
+        self._api_key_id = api_key_id
         self._revision = revision
         self._input = deepcopy(input) if input is not None else None
         self._status = status if status is not None else RunStatus.PENDING
@@ -109,9 +115,13 @@ class Run:
         finished_at: datetime | None,
         created_at: datetime,
         updated_at: datetime,
+        user_id: UUID | None = None,
+        api_key_id: UUID | None = None,
     ) -> Self:
         run = cls.__new__(cls)
         run._id = id
+        run._user_id = user_id
+        run._api_key_id = api_key_id
         run._revision = revision
         run._input = deepcopy(input)
         run._status = status
@@ -127,6 +137,14 @@ class Run:
     @property
     def id(self) -> UUID:
         return self._id
+
+    @property
+    def user_id(self) -> UUID | None:
+        return self._user_id
+
+    @property
+    def api_key_id(self) -> UUID | None:
+        return self._api_key_id
 
     @property
     def revision(self) -> Revision:

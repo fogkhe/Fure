@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid7
 
+import sqlalchemy as sa
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
@@ -38,7 +39,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
     ):
         async with self.database.sessions() as session:
             functions = FunctionService(session)
-            function = await functions.create(name="test")
+            function = await functions.create(name="test", public=True)
             revision = await RevisionService(session).create(
                 function_id=function.id,
                 implementation=PythonImplementation(code),
@@ -210,6 +211,95 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
                 )
             )
         self.assertEqual(differences, [])
+
+    async def test_auth_migration_preserves_legacy_functions_revisions_and_runs(self):
+        config = Config()
+        config.set_main_option(
+            "script_location",
+            str(Path(__file__).resolve().parent.parent / "fure/database/migrations"),
+        )
+        function_id, revision_id, run_id = uuid7(), uuid7(), uuid7()
+        now = datetime.now(UTC)
+        async with self.database.engine.begin() as connection:
+
+            def legacy(sync):
+                config.attributes["connection"] = sync
+                command.downgrade(config, "0001")
+                metadata = sa.MetaData()
+                functions = sa.Table("functions", metadata, autoload_with=sync)
+                revisions = sa.Table("revisions", metadata, autoload_with=sync)
+                runs = sa.Table("runs", metadata, autoload_with=sync)
+                # SQLite reflects UUID storage as CHAR(32); restore bind types.
+                for table in (functions, revisions, runs):
+                    for column in table.c:
+                        if column.name == "id" or column.name.endswith("_id"):
+                            column.type = sa.Uuid()
+                sync.execute(
+                    functions.insert().values(
+                        id=function_id,
+                        name="legacy",
+                        enabled=True,
+                        created_at=now,
+                        updated_at=now,
+                        version=1,
+                    )
+                )
+                sync.execute(
+                    revisions.insert().values(
+                        id=revision_id,
+                        function_id=function_id,
+                        created_at=now,
+                        implementation={
+                            "type": "jinja",
+                            "template": "hello",
+                            "input_schema": {},
+                            "output_schema": {},
+                        },
+                        runner_options={
+                            "type": "openai_jinja",
+                            "timeout": 10,
+                            "api_key": None,
+                            "base_url": "http://localhost/v1",
+                            "model": "legacy",
+                        },
+                    )
+                )
+                sync.execute(
+                    functions.update()
+                    .where(functions.c.id == function_id)
+                    .values(revision_id=revision_id)
+                )
+                sync.execute(
+                    runs.insert().values(
+                        id=run_id,
+                        revision_id=revision_id,
+                        status="succeeded",
+                        output="legacy answer",
+                        meta={
+                            "type": "openai_jinja",
+                            "input_tokens": 1,
+                            "output_tokens": 2,
+                            "total_tokens": 3,
+                        },
+                        duration=1,
+                        created_at=now,
+                        updated_at=now,
+                        started_at=now,
+                        finished_at=now,
+                    )
+                )
+
+            await connection.run_sync(legacy)
+        await self.database.migrate()
+        async with self.database.sessions() as session:
+            function = await FunctionRepository(session).get(function_id)
+            run = await RunRepository(session).get(run_id)
+        self.assertFalse(function.public)
+        self.assertEqual(function.revision.id, revision_id)
+        self.assertTrue(function.revision.runner_options.structured_outputs)
+        self.assertEqual(function.revision.runner_options.reasoning_end_tags, ())
+        self.assertIsNone(run.user_id)
+        self.assertEqual(run.output, "legacy answer")
 
     def test_postgresql_migration_compiles_without_a_server(self):
         buffer = io.StringIO()

@@ -4,6 +4,7 @@ import type { FunctionRecord } from '~/types/api'
 
 const open = defineModel<boolean>('open', { default: false })
 const api = useApi()
+const auth = useAuth()
 const state = reactive({ name: '', description: '' })
 const saving = ref(false)
 const error = ref('')
@@ -30,7 +31,7 @@ async function create() {
   try {
     const record = await api<FunctionRecord>('/functions', { method: 'POST', body: { name: state.name, description: state.description || null } })
     open.value = false
-    await navigateTo(`/functions/${record.id}?newRevision=1`)
+    await navigateTo(`/functions/${record.id}${auth.can('functions.update') ? '?newRevision=1' : ''}`)
   } catch (problem) {
     error.value = errorMessage(problem)
   } finally {

@@ -2,16 +2,19 @@ import json
 from dataclasses import dataclass
 from time import monotonic
 
+from jsonschema.validators import validator_for
 from openai import AsyncOpenAI, Omit, omit
 from openai.types.shared_params.response_format_json_schema import (
     ResponseFormatJSONSchema,
 )
+from referencing import Registry
 
 from fure.core.implementations import JinjaImplementation
 from fure.core.run import SucceedRunMeta
 from fure.core.runners.base import RunResult
 from fure.core.runners.jinja.base import BaseJinjaRunner, BaseJinjaRunnerOptions
 from fure.core.types import JSONValue
+from fure.utils.json_extraction import extract_json, parse_json
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +29,13 @@ class OpenAIJinjaRunnerOptions(BaseJinjaRunnerOptions):
     api_key: str | None
     base_url: str
     model: str
+    structured_outputs: bool = True
+    reasoning_end_tags: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, "reasoning_end_tags", tuple(self.reasoning_end_tags))
+        if any(not tag.strip() for tag in self.reasoning_end_tags):
+            raise ValueError("Reasoning end tags cannot be empty")
 
 
 class OpenAIJinjaRunner(
@@ -43,7 +53,8 @@ class OpenAIJinjaRunner(
         options = options if options is not None else self._options
 
         output_schema = implementation.output_schema
-        structured_output = bool(output_schema)
+        json_output = bool(output_schema)
+        structured_output = json_output and options.structured_outputs
 
         response_format: ResponseFormatJSONSchema | Omit = omit
         if structured_output:
@@ -61,9 +72,16 @@ class OpenAIJinjaRunner(
         prompt = implementation.render(input)
 
         messages = []
-        if structured_output:
+        if json_output:
+            instruction = "The output must conform to the schema."
+            if not structured_output:
+                instruction = (
+                    "Return exactly one JSON value matching this JSON Schema. "
+                    "Do not include explanations or Markdown.\n"
+                    + json.dumps(output_schema, ensure_ascii=False)
+                )
             messages.append(
-                {"role": "system", "content": "The output must conform to the schema."},
+                {"role": "system", "content": instruction},
             )
         messages.append(
             {"role": "user", "content": prompt},
@@ -80,14 +98,12 @@ class OpenAIJinjaRunner(
                 response_format=response_format,
             )
 
-        duration = monotonic() - start_time
-
         if not completion.choices:
             raise RuntimeError(
                 "Chat completion returned no choices",
             )
         choice = completion.choices[0]
-        if structured_output:
+        if json_output:
             if choice.message.refusal:
                 raise RuntimeError(
                     "Chat completion refused to produce structured output",
@@ -103,13 +119,20 @@ class OpenAIJinjaRunner(
             )
 
         output = content
-        if structured_output:
+        if json_output:
             try:
-                output = json.loads(content)
-            except json.JSONDecodeError as error:
+                output = (
+                    parse_json(content)
+                    if structured_output
+                    else extract_json(content, options.reasoning_end_tags)
+                )
+            except ValueError as error:
                 raise ValueError(
-                    "Chat completion returned invalid JSON",
+                    "Chat completion returned invalid JSON or multiple JSON values",
                 ) from error
+            validator_type = validator_for(output_schema)
+            validator_type.check_schema(output_schema)
+            validator_type(output_schema, registry=Registry()).validate(output)
 
         usage = completion.usage
         return RunResult(
@@ -119,5 +142,5 @@ class OpenAIJinjaRunner(
                 output_tokens=usage.completion_tokens if usage is not None else None,
                 total_tokens=usage.total_tokens if usage is not None else None,
             ),
-            duration=duration,
+            duration=monotonic() - start_time,
         )

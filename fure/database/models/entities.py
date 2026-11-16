@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     Uuid,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
@@ -51,6 +52,7 @@ class FunctionRow(Base):
         ForeignKey("revisions.id", name="fk_functions_revision", use_alter=True)
     )
     enabled: Mapped[bool] = mapped_column(Boolean)
+    public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime())
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
@@ -92,6 +94,12 @@ class RunRow(Base):
     __tablename__ = "runs"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", name="fk_runs_user")
+    )
+    api_key_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("api_keys.id", name="fk_runs_api_key")
+    )
     revision_id: Mapped[UUID] = mapped_column(ForeignKey("revisions.id"))
     input: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     status: Mapped[str] = mapped_column(String(16))
@@ -115,4 +123,5 @@ class RunRow(Base):
         Index("ix_runs_revision_created", "revision_id", "created_at", "id"),
         Index("ix_runs_status_heartbeat", "status", "heartbeat_at"),
         Index("ix_runs_created", "created_at", "id"),
+        Index("ix_runs_user_created", "user_id", "created_at", "id"),
     )

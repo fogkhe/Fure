@@ -21,6 +21,8 @@ locks or SQLite `BEGIN IMMEDIATE`, including multiple application workers.
 | `DATABASE_AUTO_MIGRATE` | `true` | Apply Alembic migrations during startup |
 | `EXECUTION_HEARTBEAT_INTERVAL` | `1` | Worker heartbeat interval in seconds |
 | `EXECUTION_LEASE_SECONDS` | `30` | Mark active executions failed after this many seconds without a heartbeat |
+| `SESSION_LIFETIME_SECONDS` | `604800` | Browser session lifetime in seconds |
+| `SESSION_COOKIE_SECURE` | `false` | Send the session cookie only over HTTPS |
 
 The lease must exceed three heartbeat intervals and be at least ten seconds.
 With `DATABASE_AUTO_MIGRATE=false`, deploy migrations separately before starting
@@ -46,8 +48,13 @@ at module import time.
   discriminator. Credentials are persisted with runner settings and removed by
   API presenters before response serialization.
 - `runs`: immutable revision reference, input/output, typed metadata, status and
-  timestamps. Worker identity and heartbeat support cross-worker cancellation and
+  timestamps, caller user/API-key references. Worker identity and heartbeat support cross-worker cancellation and
   recovery. Check constraints restrict statuses and reject negative durations.
+- `users`, `roles`, `user_roles`: accounts and role membership; permissions come
+  from a fixed catalogue and are combined at request time.
+- `sessions`, `api_keys`: hashed credentials, expiration and revocation state.
+  Role/account mutations serialize the last-administrator check; blocking accounts
+  revokes sessions and keys. See [authentication](auth.md).
 
 Foreign keys preserve ownership and history. Timestamps are normalized to UTC on
 database writes and reads, including timezone-naive values returned by SQLite.

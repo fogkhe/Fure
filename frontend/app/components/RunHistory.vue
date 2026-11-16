@@ -6,6 +6,7 @@ const props = defineProps<{
   revisionId?: string
 }>()
 const api = useApi()
+const auth = useAuth()
 const toast = useToast()
 const page = ref(1)
 const filter = ref('all')
@@ -26,7 +27,7 @@ watch([filter, () => props.functionId, () => props.revisionId], () => {
   page.value = 1
 })
 watch(data, async (value) => {
-  const ids = [...new Set(value?.items.map(item => item.function_id) || [])].filter(id => !names.value[id] && !loadingNames.has(id))
+  const ids = auth.can('functions.read') ? [...new Set(value?.items.map(item => item.function_id) || [])].filter(id => !names.value[id] && !loadingNames.has(id)) : []
   await Promise.all(ids.map(async (id) => {
     loadingNames.add(id)
     try {
@@ -109,9 +110,14 @@ const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: '
       </template>
       <template #function_id-cell="{ row }">
         <NuxtLink
+          v-if="auth.can('functions.read')"
           :to="`/functions/${row.original.function_id}`"
           class="font-medium hover:text-primary"
         >{{ names[row.original.function_id] || shortId(row.original.function_id) }}</NuxtLink>
+        <span
+          v-else
+          class="font-mono text-xs"
+        >{{ shortId(row.original.function_id) }}</span>
       </template>
       <template #status-cell="{ row }">
         <StatusBadge :status="row.original.status" />
@@ -125,7 +131,7 @@ const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: '
       <template #actions-cell="{ row }">
         <div class="flex justify-end gap-1">
           <UButton
-            v-if="['pending', 'running'].includes(row.original.status)"
+            v-if="['pending', 'running'].includes(row.original.status) && auth.canCancel(row.original)"
             icon="i-lucide-square"
             aria-label="Отменить запуск"
             color="error"

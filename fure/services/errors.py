@@ -14,6 +14,14 @@ class NotFound(ServiceError):
     pass
 
 
+class Unauthorized(ServiceError):
+    pass
+
+
+class Forbidden(ServiceError):
+    pass
+
+
 class Conflict(ServiceError):
     pass
 

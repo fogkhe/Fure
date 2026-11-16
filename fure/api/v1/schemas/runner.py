@@ -18,6 +18,10 @@ class OpenAIJinjaRunnerOptionsRequest(RequestSchema):
     api_key: SecretStr | None = None
     base_url: AnyHttpUrl
     model: str = Field(min_length=1)
+    structured_outputs: bool = True
+    reasoning_end_tags: list[
+        Annotated[str, Field(min_length=1, max_length=256, pattern=r"\S")]
+    ] = Field(default_factory=list, max_length=32)
 
 
 type RunnerOptionsRequest = Annotated[
@@ -36,6 +40,8 @@ class OpenAIJinjaRunnerOptionsResponse(BaseModel):
     timeout: Timeout | None
     base_url: AnyHttpUrl
     model: str
+    structured_outputs: bool
+    reasoning_end_tags: list[str]
 
 
 type RunnerOptionsResponse = Annotated[

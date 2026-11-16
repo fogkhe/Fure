@@ -9,10 +9,21 @@ useHead({
   link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]
 })
 useSeoMeta({ description: 'Функции, версии реализаций и история запусков в одном месте.' })
-const items: NavigationMenuItem[] = [
-  { label: 'Функции', icon: 'i-lucide-square-function', to: '/', exact: true },
-  { label: 'Запуски', icon: 'i-lucide-activity', to: '/runs' }
-]
+const auth = useAuth()
+const toast = useToast()
+const items = computed<NavigationMenuItem[]>(() => [
+  ...(auth.can('functions.read') ? [{ label: 'Функции', icon: 'i-lucide-square-function', to: '/', exact: true }] : []),
+  ...(auth.can('runs.read') ? [{ label: 'Запуски', icon: 'i-lucide-activity', to: '/runs' }] : []),
+  ...(auth.can('users.manage') ? [{ label: 'Пользователи', icon: 'i-lucide-users', to: '/users' }] : []),
+  ...(auth.can('roles.manage') ? [{ label: 'Роли', icon: 'i-lucide-shield', to: '/roles' }] : [])
+])
+async function logout() {
+  try {
+    await auth.logout()
+  } catch (problem) {
+    toast.add({ title: 'Не удалось выйти', description: errorMessage(problem), color: 'error' })
+  }
+}
 const { data: health, error, refresh } = await useAsyncData('api-health', () => $fetch<{
   status: string
 }>('/api/health', { retry: 0 }), { server: false })
@@ -62,6 +73,23 @@ onUnmounted(() => clearInterval(timer))
           />
         </UTooltip>
         <UColorModeButton aria-label="Переключить тему" />
+        <UButton
+          v-if="auth.session.value"
+          to="/account"
+          :label="auth.session.value.user.username"
+          icon="i-lucide-user-round"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+        />
+        <UButton
+          v-if="auth.session.value"
+          icon="i-lucide-log-out"
+          aria-label="Выйти"
+          color="neutral"
+          variant="ghost"
+          @click="logout"
+        />
       </template>
       <template #body>
         <UNavigationMenu

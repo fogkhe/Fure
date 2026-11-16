@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Path, Response
 
-from fure.api.dependencies import ExecutionServiceDep
+from fure.api.dependencies import ExecutionServiceDep, OptionalPrincipalDep
 from fure.api.v1.schemas import ErrorResponse, RunRequest, RunResponse
 from fure.api.v1.schemas.common import FunctionName
 
@@ -50,12 +50,13 @@ async def run_function(
     request: Annotated[RunRequest, Body(examples=[{"input": {"name": "world"}}])],
     service: ExecutionServiceDep,
     response: Response,
+    principal: OptionalPrincipalDep,
 ) -> RunResponse:
     """Execute the function's current revision synchronously and record the run.
 
     Return output, runner metadata and duration in seconds. Omit input or use null
     for functions that take no input. Execution history is exposed through /v1/runs.
     """
-    run = await service.execute(function_name, request.input)
+    run = await service.execute(function_name, request.input, principal=principal)
     response.headers["X-Run-Id"] = str(run.id)
     return RunResponse.model_validate(run)

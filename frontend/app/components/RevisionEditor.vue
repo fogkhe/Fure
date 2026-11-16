@@ -21,6 +21,8 @@ const state = reactive({
   model: '',
   apiKey: '',
   outputSchema: '{}',
+  structuredOutputs: true,
+  reasoningEndTags: '',
   activate: true
 })
 const saving = ref(false)
@@ -40,6 +42,8 @@ watch(open, (value) => {
   state.timeout = initial ? initial.runner_options.timeout == null ? '' : String(initial.runner_options.timeout) : '30'
   state.baseUrl = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.base_url : 'https://api.openai.com/v1'
   state.model = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.model : ''
+  state.structuredOutputs = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.structured_outputs : true
+  state.reasoningEndTags = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.reasoning_end_tags.join('\n') : ''
   state.apiKey = ''
   state.activate = true
   created.value = null
@@ -80,7 +84,7 @@ async function save() {
       const timeout = state.timeout === '' ? null : Number(state.timeout)
       const body = state.kind === 'python'
         ? { function_id: props.functionId, implementation: { type: 'python', code: state.code }, runner_options: { type: 'inline_python', timeout } }
-        : { function_id: props.functionId, implementation: { type: 'jinja', template: state.template, output_schema: parseObject(state.outputSchema) }, runner_options: { type: 'openai_jinja', timeout, base_url: state.baseUrl, model: state.model, api_key: state.apiKey || null } }
+        : { function_id: props.functionId, implementation: { type: 'jinja', template: state.template, output_schema: parseObject(state.outputSchema) }, runner_options: { type: 'openai_jinja', timeout, base_url: state.baseUrl, model: state.model, api_key: state.apiKey || null, structured_outputs: state.structuredOutputs, reasoning_end_tags: state.reasoningEndTags.split('\n').filter(tag => tag.trim()) } }
       created.value = await api<RevisionRecord>('/revisions', { method: 'POST', body })
       state.apiKey = ''
       emit('created', created.value)
@@ -207,7 +211,7 @@ async function save() {
           <UFormField
             label="Выходная схема"
             name="outputSchema"
-            description="{} — текстовый ответ. Непустая схема передаётся провайдеру как Structured Outputs."
+            description="{} — текстовый ответ. Непустая схема задаёт формат JSON-результата."
           >
             <UTextarea
               v-model="state.outputSchema"
@@ -216,6 +220,26 @@ async function save() {
               :disabled="saving || !!created"
               class="w-full"
               :ui="{ base: 'font-mono text-sm' }"
+            />
+          </UFormField>
+          <USwitch
+            v-model="state.structuredOutputs"
+            label="Structured Outputs"
+            description="Выключите, если провайдер не поддерживает этот режим. JSON будет извлекаться из текста и проверяться по схеме."
+            :disabled="saving || !!created"
+          />
+          <UFormField
+            v-if="!state.structuredOutputs"
+            label="Окончания тегов размышления"
+            name="reasoningEndTags"
+            description="По одному на строке, например </think>. Пустой список отключает удаление размышлений."
+          >
+            <UTextarea
+              v-model="state.reasoningEndTags"
+              :rows="3"
+              :disabled="saving || !!created"
+              :spellcheck="false"
+              class="w-full"
             />
           </UFormField>
         </template>

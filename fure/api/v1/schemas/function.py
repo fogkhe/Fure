@@ -15,6 +15,7 @@ class FunctionCreateRequest(RequestSchema):
     name: FunctionName
     description: FunctionDescription | None = None
     enabled: bool = True
+    public: bool = False
 
 
 class FunctionUpdateRequest(RequestSchema):
@@ -22,12 +23,13 @@ class FunctionUpdateRequest(RequestSchema):
     description: FunctionDescription | None = None
     revision_id: UUID | None = None
     enabled: bool | None = None
+    public: bool | None = None
 
     @model_validator(mode="after")
     def validate_changes(self) -> Self:
         if not self.model_fields_set:
             raise ValueError("At least one field must be supplied")
-        for field in ("name", "revision_id", "enabled"):
+        for field in ("name", "revision_id", "enabled", "public"):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f"'{field}' cannot be null")
         return self
@@ -45,6 +47,7 @@ class FunctionResponse(BaseModel):
     description: str | None
     revision_id: UUID | None
     enabled: bool
+    public: bool
     deleted: bool
     runnable: bool
     input_schema: dict[str, JsonValue]

@@ -3,6 +3,7 @@ import type { FunctionRecord, Page } from '~/types/api'
 
 useSeoMeta({ title: 'Функции' })
 const api = useApi()
+const auth = useAuth()
 const page = ref(1)
 const name = ref('')
 const search = ref('')
@@ -17,8 +18,8 @@ const filters = [
 const query = computed(() => ({ page: page.value - 1, size: 12, name: name.value || undefined, deleted: filter.value === 'deleted', enabled: filter.value === 'enabled' ? true : filter.value === 'disabled' ? false : undefined }))
 const { data, status, error, refresh } = await useAsyncData('functions', () => api<Page<FunctionRecord>>('/functions', { query: query.value }), { server: false, watch: [query] })
 const { data: overview, refresh: refreshOverview } = await useAsyncData('overview', async () => {
-  const [functions, revisions, runs] = await Promise.all(['/functions', '/revisions', '/runs'].map(url => api<Page<unknown>>(url, { query: { size: 1 } })))
-  return { functions: functions!.total, revisions: revisions!.total, runs: runs!.total }
+  const [functions, revisions, runs] = await Promise.all(['/functions', '/revisions', '/runs'].map(url => url === '/runs' && !auth.can('runs.read') ? Promise.resolve(null) : api<Page<unknown>>(url, { query: { size: 1 } })))
+  return { functions: functions?.total, revisions: revisions?.total, runs: runs?.total }
 }, { server: false })
 watch(filter, () => {
   page.value = 1
@@ -48,6 +49,7 @@ function state(record: FunctionRecord) {
         </p>
       </div>
       <UButton
+        v-if="auth.can('functions.create')"
         label="Новая функция"
         icon="i-lucide-plus"
         size="lg"
@@ -173,7 +175,7 @@ function state(record: FunctionRecord) {
       icon="i-lucide-square-function"
       :title="name || filter !== 'all' ? 'Функции не найдены' : 'Здесь начинается ваша первая функция'"
       :description="name || filter !== 'all' ? 'Измените фильтры или проверьте точное имя функции.' : 'Добавьте Python-код или Jinja-шаблон, создайте версию и выполните первый запуск.'"
-      :actions="[{ label: 'Новая функция', icon: 'i-lucide-plus', onClick: () => creating = true }]"
+      :actions="auth.can('functions.create') ? [{ label: 'Новая функция', icon: 'i-lucide-plus', onClick: () => creating = true }] : []"
       class="min-h-72 border border-dashed border-default"
     />
     <div

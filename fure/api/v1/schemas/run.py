@@ -33,6 +33,8 @@ class RunDetailResponse(BaseModel):
     id: UUID
     function_id: UUID
     revision_id: UUID
+    user_id: UUID | None
+    api_key_id: UUID | None
     input: dict[str, JsonValue] | None
     status: RunStatus
     output: JsonValue

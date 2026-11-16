@@ -22,6 +22,7 @@ class Function:
         "_enabled",
         "_id",
         "_name",
+        "_public",
         "_revision",
         "_updated_at",
     )
@@ -34,6 +35,7 @@ class Function:
         *,
         id: UUID | None = None,
         enabled: bool | None = None,
+        public: bool = False,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
         deleted_at: datetime | None = None,
@@ -46,6 +48,7 @@ class Function:
         self._description = description
         self._revision = revision
         self._enabled = enabled if enabled is not None else True
+        self._public = public
         self._created_at = normalize_datetime(
             created_at if created_at is not None else datetime.now(UTC)
         )
@@ -70,6 +73,7 @@ class Function:
         created_at: datetime,
         updated_at: datetime,
         deleted_at: datetime | None,
+        public: bool = False,
     ) -> Self:
         function = cls.__new__(cls)
         function._id = id
@@ -77,6 +81,7 @@ class Function:
         function._description = description
         function._revision = revision
         function._enabled = enabled
+        function._public = public
         function._created_at = created_at
         function._updated_at = updated_at
         function._deleted_at = deleted_at
@@ -143,6 +148,16 @@ class Function:
     @property
     def enabled(self) -> bool:
         return self._enabled
+
+    @property
+    def public(self) -> bool:
+        return self._public
+
+    @public.setter
+    def public(self, value: bool) -> None:
+        if self._public != value:
+            self._public = value
+            self._update()
 
     @property
     def created_at(self) -> datetime:

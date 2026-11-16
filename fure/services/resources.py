@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fure.core.auth import Permission, Principal
 from fure.core.function import Function
 from fure.core.implementations import BaseImplementation
 from fure.core.revision import Revision
@@ -54,9 +55,14 @@ class FunctionService:
             return await require_function(self.functions, id)
 
     async def create(
-        self, *, name: str, description: str | None = None, enabled: bool = True
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        enabled: bool = True,
+        public: bool = False,
     ) -> Function:
-        function = Function(name, description, enabled=enabled)
+        function = Function(name, description, enabled=enabled, public=public)
         async with transaction(self.session):
             await self.functions.add(function)
         return function
@@ -72,6 +78,8 @@ class FunctionService:
                 function.description = changes["description"]
             if "enabled" in changes:
                 function.enable() if changes["enabled"] else function.disable()
+            if "public" in changes:
+                function.public = changes["public"]
             if "revision_id" in changes:
                 revision = await self.revisions.get(changes["revision_id"])
                 if revision is None:
@@ -150,11 +158,18 @@ class RevisionService:
 
 
 class RunService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self, session: AsyncSession, principal: Principal | None = None
+    ) -> None:
         self.session = session
         self.runs = RunRepository(session)
+        self.principal = principal
 
     async def list(self, **filters) -> tuple[list[Run], int]:
+        if self.principal is not None and not self.principal.allows(
+            Permission.RUNS_READ_ALL
+        ):
+            filters["user_id"] = self.principal.user.id
         async with transaction(self.session):
             return await self.runs.list(**filters)
 
@@ -162,5 +177,11 @@ class RunService:
         async with transaction(self.session):
             run = await self.runs.get(id)
             if run is None:
+                raise NotFound("Run not found")
+            if (
+                self.principal is not None
+                and not self.principal.allows(Permission.RUNS_READ_ALL)
+                and run.user_id != self.principal.user.id
+            ):
                 raise NotFound("Run not found")
             return run

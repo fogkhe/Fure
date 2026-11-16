@@ -3,13 +3,14 @@ import type { RunRecord, FunctionRecord } from '~/types/api'
 
 const route = useRoute()
 const api = useApi()
+const auth = useAuth()
 const toast = useToast()
 const id = String(route.params.id)
 const { data: record, error, status, refresh } = await useAsyncData(`run-${id}`, () => api<RunRecord>(`/runs/${encodeURIComponent(id)}`), { server: false })
 useSeoMeta({ title: `Запуск #${shortId(id)}` })
 const names = useState<Record<string, string>>('function-names', () => ({}))
 watch(() => record.value?.function_id, async (functionId) => {
-  if (functionId && !names.value[functionId]) {
+  if (functionId && !names.value[functionId] && auth.can('functions.read')) {
     try {
       names.value[functionId] = (await api<FunctionRecord>(`/functions/${functionId}`)).name
     } catch { /* The history remains available without the function. */
@@ -66,12 +67,13 @@ onBeforeUnmount(() => clearInterval(timer))
               Запуск <span class="font-mono">#{{ shortId(id) }}</span>
             </h1><StatusBadge :status="record.status" />
           </div><NuxtLink
+            v-if="auth.can('functions.read')"
             :to="`/functions/${record.function_id}`"
             class="mt-3 inline-flex items-center gap-2 text-primary hover:underline"
           ><UIcon name="i-lucide-square-function" />{{ names[record.function_id] || record.function_id }}</NuxtLink>
         </div><div class="flex gap-2">
           <UButton
-            v-if="active"
+            v-if="active && auth.canCancel(record)"
             label="Отменить запуск"
             icon="i-lucide-square"
             color="error"
