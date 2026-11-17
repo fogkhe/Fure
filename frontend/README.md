@@ -1,7 +1,7 @@
 # Fure Workspace
 
 A Nuxt 4 / Nuxt UI 4 interface based on the Nuxt UI Starter Template,
-with its green accent, Public Sans typography and light/dark themes.
+with an orange accent, Public Sans typography and light/dark themes.
 
 ## Development
 
