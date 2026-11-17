@@ -75,7 +75,6 @@ const functionStatus = computed(() => record.value?.deleted ? 'deleted' : !recor
         :content="false"
         variant="link"
         class="mb-7"
-        :ui="{ list: 'overflow-x-auto' }"
       />
       <RunPanel
         v-if="tab === 'run'"
