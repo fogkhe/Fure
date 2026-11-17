@@ -97,9 +97,9 @@ class ExecutionService:
                         len(pending),
                     )
 
-    async def execute(
+    async def submit(
         self,
-        name: str,
+        function: UUID | str,
         input: dict[str, JSONValue] | None,
         *,
         principal: Principal | None = None,
@@ -107,8 +107,13 @@ class ExecutionService:
         if self._closing:
             raise Unavailable("Application is shutting down")
         async with self.database.sessions.begin() as session:
-            function = await FunctionRepository(session).by_name(name, lock=True)
-            if function is None:
+            repository = FunctionRepository(session)
+            function = (
+                await repository.get(function, lock=True)
+                if isinstance(function, UUID)
+                else await repository.by_name(function, lock=True)
+            )
+            if function is None or function.deleted:
                 raise NotFound("Function not found or deleted")
             if not function.public:
                 if principal is None:
@@ -131,6 +136,17 @@ class ExecutionService:
         task = asyncio.create_task(self._perform(run), name=f"fure-run-{run.id}")
         self._tasks[run.id] = task
         task.add_done_callback(lambda finished: self._forget(run.id, finished))
+        return run
+
+    async def execute(
+        self,
+        function: UUID | str,
+        input: dict[str, JSONValue] | None,
+        *,
+        principal: Principal | None = None,
+    ) -> Run:
+        run = await self.submit(function, input, principal=principal)
+        task = self._tasks[run.id]
         try:
             return await asyncio.shield(task)
         except asyncio.CancelledError:

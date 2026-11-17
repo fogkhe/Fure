@@ -21,15 +21,17 @@ administrator session or a key with the corresponding permissions.
 | PATCH | `/v1/functions/{function_id}` | Change name, description, enabled/public flags or current revision |
 | DELETE | `/v1/functions/{function_id}` | Soft-delete a function, retaining history |
 | POST | `/v1/functions/{function_id}/undelete` | Clear the deletion marker |
+| POST | `/v1/functions/{function_id}/run` | Execute the current revision; `wait=false` returns the run immediately |
 | GET | `/v1/revisions` | List revisions; filter by `function_id` |
 | POST | `/v1/revisions` | Create an immutable implementation version |
 | GET | `/v1/revisions/{revision_id}` | Get implementation source, schemas and public runner settings |
 | GET | `/v1/runs` | List execution history; filter by `function_id`, `revision_id`, `status` |
 | GET | `/v1/runs/{run_id}` | Get execution input, output, metadata, status and timestamps |
 | POST | `/v1/runs/{run_id}/cancel` | Cancel a pending or running execution |
-| POST | `/v1/run/{function_name}` | Execute the current revision synchronously |
+| POST | `/v1/run/{function_name}` | Name-based alias of `/v1/functions/{function_id}/run` |
 
-Management endpoints use UUIDs. Execution uses the current function name.
+The canonical execution route uses the immutable function UUID. The name-based
+alias resolves the current function name and has identical parameters and permissions.
 List responses have `items`, `total`, `page` and `size`. Pages are zero-based;
 `page=0` and `size=100` are the defaults, with a maximum size of 1000.
 Lists are ordered newest first. Function lists exclude deleted functions by
@@ -83,7 +85,7 @@ default; `deleted=true` selects deleted functions.
    source or runner settings. PATCH updates only supplied fields; `description: null`
    clears the description. Other editable fields cannot be null.
 
-4. `POST /v1/run/greet`:
+4. `POST /v1/functions/{function_id}/run` (or its alias `POST /v1/run/greet`):
 
    ```json
    {"input": {"name": "world"}}
@@ -106,6 +108,26 @@ default; `deleted=true` selects deleted functions.
    cancelled runs. Each record identifies its function and immutable revision.
    The `X-Run-Id` response header identifies the stored execution on both success
    and execution errors; use it to fetch `/v1/runs/{run_id}`.
+
+## Execution with an immediate run ID
+
+Add `?wait=false` to either execution route to receive `202` and a full execution
+record immediately, including `id`, `function_id`, `revision_id`, `status` and
+caller information. `X-Run-Id` contains the same ID. The input body is unchanged.
+This mode requires authentication and `runs.read`, in addition to the usual
+function execution rules, because the result is read from execution history.
+
+Poll `GET /v1/runs/{id}` while status is `pending` or `running`. Terminal states
+are `succeeded`, `failed` and `cancelled`. Result, metadata and duration are stored
+in the record; failures include `meta.code` and `meta.message` rather than a
+subsequent synchronous HTTP error. Execution continues independently of the
+submission request and uses the same heartbeat, timeout and shutdown handling.
+
+Cancel through `POST /v1/runs/{id}/cancel`, with the same permissions and terminal
+state protection as history cancellation. In the workspace, users with history
+access use this mode, and the Run button becomes Cancel when they also have
+`runs.cancel`. Users without history access retain synchronous execution.
+The default remains `wait=true`, including for anonymous public calls.
 
 ## Status codes
 

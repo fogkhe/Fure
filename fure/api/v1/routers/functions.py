@@ -3,7 +3,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Response, status
 
-from fure.api.dependencies import FunctionServiceDep, PrincipalDep, require_permission
+from fure.api.dependencies import (
+    ExecutionServiceDep,
+    FunctionServiceDep,
+    OptionalPrincipalDep,
+    PrincipalDep,
+    require_permission,
+)
+from fure.api.v1.execution import RUN_RESPONSES, WaitForRun, execute_function
 from fure.api.v1.presenters import function_response
 from fure.api.v1.schemas import (
     ErrorResponse,
@@ -13,6 +20,7 @@ from fure.api.v1.schemas import (
     FunctionUpdateRequest,
     PaginationResponse,
 )
+from fure.api.v1.schemas.run import RunRequest, RunResponse
 from fure.core.auth import Permission
 from fure.services.auth import require
 
@@ -132,3 +140,28 @@ async def undelete_function(
 ) -> FunctionResponse:
     """Clear the deletion marker, preserving the function's enabled flag and current revision."""
     return function_response(await service.undelete(function_id))
+
+
+@router.post(
+    "/{function_id}/run",
+    summary="Run a function by ID",
+    response_model=RunResponse,
+    responses=RUN_RESPONSES,
+)
+async def run_function(
+    function_id: Annotated[UUID, Path()],
+    request: Annotated[RunRequest, Body(examples=[{"input": {"name": "world"}}])],
+    service: ExecutionServiceDep,
+    response: Response,
+    principal: OptionalPrincipalDep,
+    wait: WaitForRun = True,
+) -> RunResponse | Response:
+    """Execute the current revision and record the run. Public functions allow anonymous execution.
+
+    Return output, metadata and duration in seconds. With wait=false, return 202
+    with the persisted run immediately; authentication and runs.read are required.
+    Poll /v1/runs/{run_id} for the result or POST its /cancel route to cancel it.
+    """
+    return await execute_function(
+        function_id, request, service, response, principal, wait=wait
+    )

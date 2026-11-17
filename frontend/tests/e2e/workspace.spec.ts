@@ -1,4 +1,4 @@
-import { expect, test, login } from './fixtures'
+import { expect, test, login, password } from './fixtures'
 import type { APIRequestContext, Page } from '@playwright/test'
 
 const python = 'from pydantic import BaseModel\n\nclass Input(BaseModel):\n    name: str\n\nasync def function(input: Input) -> str:\n    return f"Hello, {input.name}!"\n'
@@ -118,17 +118,73 @@ test('execution failures keep their history and run identifier', async ({ page, 
 test('active execution can be cancelled from history', async ({ page, context, request }) => {
   const { record } = await seed(request, 'cancel_ui', 'import asyncio\n\nasync def function(input: None) -> str:\n    await asyncio.sleep(60)\n    return "done"\n', null)
   await page.goto(`/functions/${record.id}`)
-  const response = page.waitForResponse(value => value.url().endsWith('/api/v1/run/cancel_ui'))
+  const response = page.waitForResponse(value => value.url().includes(`/api/v1/functions/${record.id}/run`) && value.request().method() === 'POST')
   await run(page)
+  expect((await response).status()).toBe(202)
   const history = await context.newPage()
   await history.goto(`/runs?function_id=${record.id}`)
   await expect(history.getByText('Выполняется', { exact: true })).toBeVisible()
   await history.getByRole('button', { name: 'Отменить запуск', exact: true }).click()
   await history.getByRole('dialog').getByRole('button', { name: 'Отменить запуск', exact: true }).click()
   await expect(history.getByText('Отменён', { exact: true })).toBeVisible()
-  expect((await response).status()).toBe(409)
+  await expect(page.getByText('Запуск отменён', { exact: true })).toBeVisible()
   await history.getByRole('link', { name: 'Открыть запуск', exact: true }).click()
   await expect(history.getByText('Отменён', { exact: true })).toBeVisible()
+})
+
+test('run panel cancels its own execution and supports retry after cancellation errors', async ({ page, request }) => {
+  const { record } = await seed(request, 'cancel_panel_ui', 'import asyncio\n\nasync def function(input: None) -> str:\n    await asyncio.sleep(60)\n    return "done"\n', null)
+  await page.goto(`/functions/${record.id}`)
+  const submitted = page.waitForResponse(response => response.url().includes(`/api/v1/functions/${record.id}/run`) && response.request().method() === 'POST')
+  await run(page)
+  const response = await submitted
+  expect(response.status()).toBe(202)
+  const execution = await response.json()
+  const cancelButton = page.getByRole('button', { name: 'Отменить', exact: true })
+  await expect(cancelButton).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Запустить', exact: true })).toHaveCount(0)
+  await cancelButton.click()
+  const dialog = page.getByRole('dialog', { name: 'Отменить запуск?' })
+  await dialog.getByRole('button', { name: 'Назад', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(cancelButton).toBeEnabled()
+  const cancelUrl = `**/api/v1/runs/${execution.id}/cancel`
+  await page.route(cancelUrl, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Temporary cancellation failure' }) }))
+  await cancelButton.click()
+  await dialog.getByRole('button', { name: 'Отменить запуск', exact: true }).click()
+  await expect(page.getByText('Не удалось отменить запуск', { exact: true })).toBeVisible()
+  expect((await (await request.get(`/api/v1/runs/${execution.id}`)).json()).status).toMatch(/pending|running/)
+  await page.unroute(cancelUrl)
+  await dialog.getByRole('button', { name: 'Отменить запуск', exact: true }).click()
+  await expect(page.getByText('Запуск отменён', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Запустить', exact: true })).toBeEnabled()
+  expect((await (await request.get(`/api/v1/runs/${execution.id}`)).json()).status).toBe('cancelled')
+  const next = page.waitForResponse(value => value.url().includes(`/api/v1/functions/${record.id}/run`) && value.request().method() === 'POST')
+  await run(page)
+  const nextExecution = await (await next).json()
+  expect(nextExecution.id).not.toBe(execution.id)
+  await expect(page.getByText('Запуск отменён', { exact: true })).toHaveCount(0)
+  await request.post(`/api/v1/runs/${nextExecution.id}/cancel`)
+  await expect(page.getByText('Запуск отменён', { exact: true })).toBeVisible()
+})
+
+test('run panel respects cancellation and history permissions', async ({ page, context, request }) => {
+  const { record } = await seed(request, 'limited_panel_ui', 'import asyncio\n\nasync def function(input: None) -> str:\n    await asyncio.sleep(1)\n    return "limited result"\n', null)
+  for (const history of [true, false]) {
+    const permissions = ['functions.read', 'functions.run', ...(history ? ['runs.read'] : [])]
+    const roleResponse = await request.post('/api/v1/roles', { data: { name: `panel-${history}`, permissions } })
+    expect(roleResponse.status()).toBe(201)
+    const role = await roleResponse.json()
+    const username = `panel-${history}`
+    expect((await request.post('/api/v1/users', { data: { username, password, role_ids: [role.id] } })).status()).toBe(201)
+    await login(context.request, username)
+    await page.goto(`/functions/${record.id}`)
+    const completed = page.waitForResponse(response => response.url().includes(`/api/v1/functions/${record.id}/run`) && response.request().method() === 'POST')
+    await run(page)
+    await expect(page.getByRole('button', { name: 'Отменить', exact: true })).toHaveCount(0)
+    expect((await completed).status()).toBe(history ? 202 : 200)
+    await expect(page.getByText('limited result', { exact: true })).toBeVisible()
+  }
 })
 
 test('Jinja editor derives input schema and stores structured output options', async ({ page, request }) => {

@@ -90,10 +90,14 @@ calling a public function. Valid credentials with insufficient permissions retur
 ## Public functions and history
 
 Functions default to `public=false`. An authorized publisher can set `public=true`
-using function creation/update. This permits anonymous `POST /v1/run/{name}` calls
+using function creation/update. This permits anonymous `POST /v1/functions/{id}/run`
+or `POST /v1/run/{name}` calls
 to the enabled function's current revision. Source, settings and execution history
 remain protected. Public functions do not appear in an anonymous catalogue.
 Rate/concurrency limiting is delegated to the external reverse proxy.
+Both execution routes default to waiting for the result. `wait=false` requires
+authentication and `runs.read` and returns the persisted run immediately so it
+can be polled or cancelled through the existing history endpoints.
 
 Runs record `user_id` and `api_key_id`. Browser and API-key calls belong to the
 same user; anonymous calls have no owner. Unrelated runs return 404 without

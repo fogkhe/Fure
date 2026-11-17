@@ -3,7 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Path, Response
 
 from fure.api.dependencies import ExecutionServiceDep, OptionalPrincipalDep
-from fure.api.v1.schemas import ErrorResponse, RunRequest, RunResponse
+from fure.api.v1.execution import RUN_RESPONSES, WaitForRun, execute_function
+from fure.api.v1.schemas import RunRequest, RunResponse
 from fure.api.v1.schemas.common import FunctionName
 
 router = APIRouter()
@@ -11,39 +12,9 @@ router = APIRouter()
 
 @router.post(
     "/{function_name}",
-    summary="Run a function by name",
-    responses={
-        200: {
-            "description": "Execution completed successfully",
-            "headers": {
-                "X-Run-Id": {
-                    "description": "Persisted execution ID for /v1/runs/{run_id}",
-                    "schema": {"type": "string", "format": "uuid"},
-                }
-            },
-            "content": {
-                "application/json": {
-                    "example": {
-                        "output": "Hello! How can I help you today?",
-                        "meta": {
-                            "input_tokens": 10,
-                            "output_tokens": 261,
-                            "total_tokens": 271,
-                        },
-                        "duration": 0.223,
-                    }
-                }
-            },
-        },
-        404: {"model": ErrorResponse, "description": "Function not found or deleted"},
-        409: {
-            "model": ErrorResponse,
-            "description": "Function is disabled, has no current revision, or execution was cancelled",
-        },
-        500: {"model": ErrorResponse, "description": "Function execution failed"},
-        502: {"model": ErrorResponse, "description": "LLM provider request failed"},
-        504: {"model": ErrorResponse, "description": "Execution timed out"},
-    },
+    summary="Run a function by name (alias)",
+    response_model=RunResponse,
+    responses=RUN_RESPONSES,
 )
 async def run_function(
     function_name: Annotated[FunctionName, Path(examples=["greet"])],
@@ -51,12 +22,13 @@ async def run_function(
     service: ExecutionServiceDep,
     response: Response,
     principal: OptionalPrincipalDep,
-) -> RunResponse:
-    """Execute the function's current revision synchronously and record the run.
+    wait: WaitForRun = True,
+) -> RunResponse | Response:
+    """Alias of POST /v1/functions/{function_id}/run, resolving the current name.
 
-    Return output, runner metadata and duration in seconds. Omit input or use null
-    for functions that take no input. Execution history is exposed through /v1/runs.
+    Both routes execute the current revision with the same permissions. By default
+    they wait for the result; wait=false returns 202 with the persisted run.
     """
-    run = await service.execute(function_name, request.input, principal=principal)
-    response.headers["X-Run-Id"] = str(run.id)
-    return RunResponse.model_validate(run)
+    return await execute_function(
+        function_name, request, service, response, principal, wait=wait
+    )

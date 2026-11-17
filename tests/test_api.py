@@ -64,6 +64,7 @@ class APITests(unittest.TestCase):
             "/v1/functions",
             "/v1/functions/{function_id}",
             "/v1/functions/{function_id}/undelete",
+            "/v1/functions/{function_id}/run",
             "/v1/revisions",
             "/v1/revisions/{revision_id}",
             "/v1/runs",
@@ -77,6 +78,113 @@ class APITests(unittest.TestCase):
                 self.assertNotIn("501", operation["responses"])
         self.assertEqual(self.client.get("/docs").status_code, 200)
         self.assertEqual(self.client.get("/health").json(), {"status": "ok"})
+
+    def test_uuid_execution_and_name_alias_share_current_revision_and_access_rules(
+        self,
+    ):
+        function = self.function()
+        self.revision(function["id"])
+        endpoint = f"/v1/functions/{function['id']}/run"
+        for path in (endpoint, "/v1/run/greet"):
+            response = self.client.post(path, json={})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["output"], "hello")
+            self.assertIn("X-Run-Id", response.headers)
+        self.client.patch(f"/v1/functions/{function['id']}", json={"name": "renamed"})
+        self.assertEqual(self.client.post(endpoint, json={}).json()["output"], "hello")
+        self.assertEqual(self.client.post("/v1/run/greet", json={}).status_code, 404)
+        self.assertEqual(self.client.post("/v1/run/renamed", json={}).status_code, 200)
+        self.client.patch(f"/v1/functions/{function['id']}", json={"enabled": False})
+        self.assertEqual(self.client.post(endpoint, json={}).status_code, 409)
+        self.client.delete(f"/v1/functions/{function['id']}")
+        self.assertEqual(self.client.post(endpoint, json={}).status_code, 404)
+
+    def _wait_terminal(self, id):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            response = self.client.get(f"/v1/runs/{id}")
+            self.assertEqual(response.status_code, 200, response.text)
+            record = response.json()
+            if record["status"] not in {"pending", "running"}:
+                return record
+            time.sleep(0.01)
+        self.fail("Run did not finish")
+
+    def test_async_execution_returns_an_id_before_completion_and_uses_existing_cancel(
+        self,
+    ):
+        function = self.function()
+        self.revision(
+            function["id"],
+            "import asyncio\nasync def function(input: None) -> str:\n    await asyncio.sleep(60)\n    return 'late'",
+            timeout=None,
+        )
+        endpoint = f"/v1/functions/{function['id']}/run?wait=false"
+        response = self.client.post(endpoint, json={})
+        self.assertEqual(response.status_code, 202, response.text)
+        record = response.json()
+        self.assertIn(record["status"], {"pending", "running"})
+        self.assertEqual(record["id"], response.headers["X-Run-Id"])
+        self.assertEqual(self._wait_running(self.client), record["id"])
+        cancelled = self.client.post(f"/v1/runs/{record['id']}/cancel")
+        self.assertEqual(cancelled.status_code, 200, cancelled.text)
+        self.assertEqual(cancelled.json()["status"], "cancelled")
+        self.assertEqual(self._wait_terminal(record["id"])["status"], "cancelled")
+        self.assertEqual(
+            self.client.post(f"/v1/runs/{record['id']}/cancel").status_code, 409
+        )
+
+    def test_async_completion_and_failure_are_persisted_for_both_routes(self):
+        function = self.function()
+        for path in (f"/v1/functions/{function['id']}/run", "/v1/run/greet"):
+            for code, expected_status in (
+                ("async def function(input: None) -> int: return 42", "succeeded"),
+                (
+                    "async def function(input: None) -> int: raise ValueError('failed')",
+                    "failed",
+                ),
+            ):
+                self.revision(function["id"], code)
+                response = self.client.post(path, params={"wait": "false"}, json={})
+                self.assertEqual(response.status_code, 202, response.text)
+                record = self._wait_terminal(response.json()["id"])
+                self.assertEqual(record["status"], expected_status)
+                self.assertEqual(record["function_id"], function["id"])
+                if expected_status == "succeeded":
+                    self.assertEqual(record["output"], 42)
+                    self.assertEqual(record["meta"], {})
+                else:
+                    self.assertEqual(record["meta"]["code"], "execution_error")
+
+    def test_async_execution_requires_readable_history_and_sync_public_execution_remains_available(
+        self,
+    ):
+        function = self.function(public=True)
+        self.revision(function["id"])
+        endpoint = f"/v1/functions/{function['id']}/run"
+        key = self.client.post(
+            "/v1/keys", json={"name": "run-only", "permissions": ["functions.run"]}
+        ).json()["secret"]
+        headers = {"Authorization": f"Bearer {key}"}
+        for path in (endpoint, "/v1/run/greet"):
+            self.assertEqual(
+                self.client.post(
+                    path, params={"wait": "false"}, json={}, headers=headers
+                ).status_code,
+                403,
+            )
+            self.assertEqual(
+                self.client.post(path, json={}, headers=headers).status_code, 200
+            )
+        # The rejected submissions must not have created any runs.
+        self.assertEqual(self.client.get("/v1/runs").json()["total"], 2)
+        self.client.cookies.clear()
+        for path in (endpoint, "/v1/run/greet"):
+            self.assertEqual(
+                self.client.post(path, params={"wait": "false"}, json={}).status_code,
+                401,
+            )
+            self.assertEqual(self.client.post(path, json={}).status_code, 200)
 
     def test_function_crud_filters_pagination_and_name_reuse(self):
         first = self.function(description="old")

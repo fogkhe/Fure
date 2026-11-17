@@ -35,7 +35,8 @@ FastAPI, so local development does not require CORS configuration.
 - Functions: creation, exact-name search, status filters and pagination.
 - Immutable Python/Inline and Jinja/OpenAI revisions: creation, cloning,
   source/schema inspection and selection of the current revision.
-- Synchronous execution with JSON input, output, duration and token counts.
+- Execution with JSON input, output, duration and token counts; the Run button
+  becomes Cancel while the user's execution is active and cancellable.
 - Global, per-function and per-revision history with polling and pagination.
 - Run details with input/output, errors, metadata and cancellation.
 - Function settings, soft deletion and restoration with preserved history.
@@ -52,9 +53,12 @@ Manual mode supports optional reasoning end markers, one per line.
 The API never returns stored provider API keys: provide a key again when copying a
 Jinja revision if the provider requires authentication.
 
-Closing the execution page does not cancel server-side work. Use run history
-to cancel an active run. The execution request is synchronous: the X-Run-Id
-header becomes available when the response arrives.
+With history access, the workspace submits to `/v1/functions/{id}/run?wait=false`
+and polls the returned run ID. Cancel uses the same endpoint and confirmation as
+history cancellation; it requires permission to cancel the user's own runs.
+Closing the execution page stops polling and leaves execution running. The
+history remains available for subsequent cancellation. Users without history
+access use the synchronous execution mode.
 
 ## Checks and production
 
