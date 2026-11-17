@@ -132,7 +132,7 @@ function keyStatus(item: APIKeyRecord) {
       />
       <UTable
         :data="data?.items || []"
-        :loading="status === 'pending'"
+        :loading="status === 'idle' || status === 'pending'"
         :columns="[{ accessorKey: 'name', header: 'Название' }, { accessorKey: 'prefix', header: 'Ключ' }, { id: 'status', header: 'Статус' }, { id: 'permissions', header: 'Разрешения' }, { id: 'expires', header: 'Срок действия' }, { id: 'actions' }]"
         empty="API-ключей пока нет"
       >

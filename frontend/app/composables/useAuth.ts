@@ -1,6 +1,7 @@
 import type { SessionRecord, RunRecord } from '~/types/api'
 
 export function useAuth() {
+  const requestFetch = useRequestFetch()
   const session = useState<SessionRecord | null>('session', () => null)
   const loaded = useState('session-loaded', () => false)
   const can = (permission: string) => session.value?.permissions.includes(permission) ?? false
@@ -8,7 +9,7 @@ export function useAuth() {
   const canCancel = (run: RunRecord) => run.user_id === session.value?.user.id ? can('runs.cancel') : can('runs.cancel_all')
   async function refresh() {
     try {
-      session.value = await $fetch<SessionRecord>('/api/v1/auth/me', { retry: 0 })
+      session.value = await requestFetch<SessionRecord>('/api/v1/auth/me', { retry: 0 })
     } catch (error) {
       if ((error as { statusCode?: number }).statusCode !== 401) throw error
       session.value = null

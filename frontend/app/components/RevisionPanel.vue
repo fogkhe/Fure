@@ -70,7 +70,7 @@ async function activate() {
       @retry="refresh()"
     />
     <USkeleton
-      v-else-if="status === 'pending' && !data"
+      v-else-if="(status === 'idle' || status === 'pending') && !data"
       class="h-64 rounded-xl"
     />
     <UEmpty

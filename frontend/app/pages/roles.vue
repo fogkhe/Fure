@@ -84,7 +84,7 @@ watch(target, () => {
     />
     <UTable
       :data="data?.items || []"
-      :loading="status === 'pending'"
+      :loading="status === 'idle' || status === 'pending'"
       :columns="[{ accessorKey: 'name', header: 'Название' }, { id: 'permissions', header: 'Разрешения' }, { id: 'actions' }]"
       empty="Ролей пока нет"
       class="rounded-xl border border-default"

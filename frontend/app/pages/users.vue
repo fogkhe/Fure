@@ -69,7 +69,7 @@ async function save() {
     />
     <UTable
       :data="data?.items || []"
-      :loading="status === 'pending'"
+      :loading="status === 'idle' || status === 'pending'"
       :columns="[{ accessorKey: 'username', header: 'Логин' }, { id: 'roles', header: 'Роли' }, { id: 'status', header: 'Статус' }, { id: 'created', header: 'Создан' }, { id: 'actions' }]"
       empty="Пользователи не найдены"
       class="rounded-xl border border-default"

@@ -117,7 +117,7 @@ function state(record: FunctionRecord) {
             color="neutral"
             variant="outline"
             aria-label="Обновить список"
-            :loading="status === 'pending'"
+            :loading="status === 'idle' || status === 'pending'"
             @click="reload"
           />
         </UTooltip>
@@ -129,7 +129,7 @@ function state(record: FunctionRecord) {
       @retry="reload"
     />
     <div
-      v-else-if="status === 'pending' && !data"
+      v-else-if="(status === 'idle' || status === 'pending') && !data"
       class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
     >
       <USkeleton

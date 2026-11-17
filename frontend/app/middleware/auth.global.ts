@@ -1,5 +1,9 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  if (import.meta.server) return
+  const nuxtApp = useNuxtApp()
+  // Keep the first client render consistent with the route and session that SSR
+  // already resolved. Subsequent navigations refresh permissions as usual.
+  if (import.meta.client && nuxtApp.isHydrating && nuxtApp.payload.serverRendered) return
+  if (import.meta.server) useResponseHeader('Cache-Control').value = 'no-store'
   const auth = useAuth()
   try {
     await auth.refresh()

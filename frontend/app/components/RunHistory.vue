@@ -85,7 +85,7 @@ const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: '
           aria-label="Обновить историю"
           color="neutral"
           variant="outline"
-          :loading="status === 'pending'"
+          :loading="status === 'idle' || status === 'pending'"
           @click="refresh()"
         />
       </div>
@@ -98,7 +98,7 @@ const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: '
     <UTable
       :data="data?.items || []"
       :columns="columns"
-      :loading="status === 'pending' && !data"
+      :loading="(status === 'idle' || status === 'pending') && !data"
       empty="Запусков пока нет"
       class="rounded-xl border border-default"
     >

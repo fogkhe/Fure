@@ -166,7 +166,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </UCard>
     </div>
     <USkeleton
-      v-else-if="status === 'pending'"
+      v-else-if="status === 'idle' || status === 'pending'"
       class="h-96 rounded-xl"
     />
     <UModal

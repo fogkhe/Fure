@@ -121,7 +121,7 @@ const functionStatus = computed(() => record.value?.deleted ? 'deleted' : !recor
       />
     </div>
     <div
-      v-else-if="status === 'pending'"
+      v-else-if="status === 'idle' || status === 'pending'"
       class="space-y-6"
     >
       <USkeleton class="h-12 w-64" /><USkeleton class="h-96 w-full rounded-xl" />

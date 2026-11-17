@@ -1,4 +1,52 @@
-import { expect, test, password } from './fixtures'
+import { expect, test, password, login } from './fixtures'
+
+for (const path of ['/', '/runs', '/functions/01900000-0000-7000-8000-000000000001', '/account', '/users', '/roles']) {
+  test(`initial authentication redirect from ${path} keeps the login layout intact`, async ({ page }, info) => {
+    const hydrationErrors: string[] = []
+    page.on('console', (message) => {
+      if (/hydration/i.test(message.text())) hydrationErrors.push(message.text())
+    })
+    await page.goto(path)
+    await expect(page).toHaveURL(/\/login$/)
+    const heading = page.getByRole('heading', { name: 'Войти в Fure', exact: true })
+    const form = page.locator('main form')
+    await expect(heading).toBeVisible()
+    await expect(form).toBeVisible()
+    const initial = { heading: await heading.boundingBox(), form: await form.boundingBox() }
+    await page.screenshot({ path: info.outputPath('initial-login.png'), fullPage: true })
+    await page.reload()
+    await expect(heading).toBeVisible()
+    const reloaded = { heading: await heading.boundingBox(), form: await form.boundingBox() }
+    expect(initial.heading!.x).toBeCloseTo(reloaded.heading!.x, 0)
+    expect(initial.form!.width).toBeCloseTo(reloaded.form!.width, 0)
+    expect(initial.form!.y).toBeGreaterThan(initial.heading!.y)
+    expect(hydrationErrors).toEqual([])
+    const response = await page.request.get(path, { maxRedirects: 0 })
+    expect(response.status()).toBe(302)
+    expect(response.headers().location).toBe('/login')
+    expect(response.headers()['cache-control']).toBe('no-store')
+  })
+}
+
+test('server authentication forwards session cookies and preserves the initial layout', async ({ page, context }) => {
+  await login(context.request)
+  const response = await context.request.get('/login', { maxRedirects: 0 })
+  expect(response.status()).toBe(302)
+  expect(response.headers().location).toBe('/')
+  const hydrationErrors: string[] = []
+  page.on('console', (message) => {
+    if (/hydration/i.test(message.text())) hydrationErrors.push(message.text())
+  })
+  await page.goto('/login')
+  await expect(page).toHaveURL('/')
+  await expect(page.getByRole('link', { name: 'admin', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Логика — в функциях.')
+  for (const path of ['/account', '/users', '/roles', '/runs']) {
+    await page.goto(path)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  }
+  expect(hydrationErrors).toEqual([])
+})
 
 test('login, role and user management, scoped keys and logout', async ({ page, request }, info) => {
   await page.goto('/')
