@@ -108,6 +108,7 @@ test('manual JSON settings and public execution persist through the proxy', asyn
   const response = await request.post('/api/v1/functions', { data: { name: 'manual-ui' } })
   const record = await response.json()
   await page.goto(`/functions/${record.id}`)
+  await page.getByRole('tab', { name: 'Версии', exact: true }).click()
   await page.getByRole('button', { name: 'Новая версия', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('combobox', { name: 'Реализация', exact: true }).click()

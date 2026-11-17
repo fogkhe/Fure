@@ -36,13 +36,6 @@ watch(record, (value) => {
     router.replace({ query: { tab: 'revisions' } })
   }
 }, { immediate: true })
-async function createFromCurrent() {
-  try {
-    create(record.value?.revision_id ? await api<RevisionRecord>(`/revisions/${record.value.revision_id}`) : null)
-  } catch (problem) {
-    toast.add({ title: 'Не удалось загрузить версию', description: errorMessage(problem), color: 'error' })
-  }
-}
 async function saved() {
   await refresh()
   revisionKey.value++
@@ -63,7 +56,7 @@ const functionStatus = computed(() => record.value?.deleted ? 'deleted' : !recor
       @retry="refresh()"
     />
     <div v-if="record">
-      <div class="mb-8 flex flex-wrap items-start justify-between gap-5">
+      <div class="mb-8">
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-3">
             <h1 class="text-3xl font-semibold tracking-tight break-all text-highlighted sm:text-4xl">
@@ -75,13 +68,6 @@ const functionStatus = computed(() => record.value?.deleted ? 'deleted' : !recor
             {{ record.id }}
           </p>
         </div>
-        <UButton
-          v-if="!record.deleted && auth.can('functions.update')"
-          label="Новая версия"
-          icon="i-lucide-plus"
-          variant="soft"
-          @click="createFromCurrent"
-        />
       </div>
       <UTabs
         v-model="tab"
