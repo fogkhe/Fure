@@ -142,33 +142,36 @@ function state(record: FunctionRecord) {
       v-else-if="data?.items.length"
       class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
     >
-      <UCard
+      <NuxtLink
         v-for="record in data.items"
         :key="record.id"
-        class="transition-shadow hover:ring-primary/40"
+        :to="`/functions/${record.id}`"
+        :aria-label="record.name"
+        class="group block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        <div class="mb-4 flex items-center justify-between gap-2">
-          <div class="flex size-10 items-center justify-center rounded-xl bg-primary/10">
-            <UIcon
-              name="i-lucide-square-function"
-              class="size-5 text-primary"
-            />
-          </div><StatusBadge :status="state(record)" />
-        </div>
-        <NuxtLink
-          :to="`/functions/${record.id}`"
-          class="inline-flex max-w-full items-center gap-2 text-lg font-semibold text-highlighted transition-colors hover:text-primary"
-        ><span class="truncate">{{ record.name }}</span><UIcon
-          name="i-lucide-arrow-up-right"
-          class="size-4 shrink-0 text-dimmed"
-        /></NuxtLink>
-        <p class="mt-2 min-h-10 line-clamp-2 text-sm leading-5 text-muted">
-          {{ record.description || 'Описание пока не добавлено.' }}
-        </p>
-        <div class="mt-5 flex items-center justify-between gap-2 border-t border-default pt-3 text-xs text-dimmed">
-          <span>{{ formatDate(record.updated_at) }}</span><span class="font-mono">{{ record.revision_id ? `#${shortId(record.revision_id)}` : 'Нет версии' }}</span>
-        </div>
-      </UCard>
+        <UCard class="h-full transition-shadow group-hover:ring-primary/40">
+          <div class="mb-4 flex items-center justify-between gap-2">
+            <div class="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+              <UIcon
+                name="i-lucide-square-function"
+                class="size-5 text-primary"
+              />
+            </div><StatusBadge :status="state(record)" />
+          </div>
+          <h3
+            class="inline-flex max-w-full items-center gap-2 text-lg font-semibold text-highlighted transition-colors group-hover:text-primary"
+          ><span class="truncate">{{ record.name }}</span><UIcon
+            name="i-lucide-arrow-up-right"
+            class="size-4 shrink-0 text-dimmed"
+          /></h3>
+          <p class="mt-2 min-h-10 line-clamp-2 text-sm leading-5 text-muted">
+            {{ record.description || 'Описание пока не добавлено.' }}
+          </p>
+          <div class="mt-5 flex items-center justify-between gap-2 border-t border-default pt-3 text-xs text-dimmed">
+            <span>{{ formatDate(record.updated_at) }}</span><span class="font-mono">{{ record.revision_id ? `#${shortId(record.revision_id)}` : 'Нет версии' }}</span>
+          </div>
+        </UCard>
+      </NuxtLink>
     </div>
     <UEmpty
       v-else
