@@ -4,7 +4,7 @@ const props = defineProps<{
 }>()
 const states = {
   ready: { label: 'Готова к запуску', color: 'success', icon: 'i-lucide-circle-check' },
-  draft: { label: 'Без реализации', color: 'neutral', icon: 'i-lucide-file-dashed' },
+  draft: { label: 'Без реализации', color: 'neutral', icon: 'i-lucide-file' },
   disabled: { label: 'Выключена', color: 'warning', icon: 'i-lucide-pause' },
   deleted: { label: 'Удалена', color: 'neutral', icon: 'i-lucide-archive' },
   pending: { label: 'В очереди', color: 'neutral', icon: 'i-lucide-clock-3' },

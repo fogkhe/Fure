@@ -23,6 +23,24 @@ test.beforeEach(async ({ context }) => {
   await login(context.request)
 })
 
+test('workspace icons render without runtime icon requests', async ({ page, request }) => {
+  const response = await request.post('/api/v1/functions', { data: { name: 'draft_icons_ui' } })
+  expect(response.status()).toBe(201)
+  const iconRequests: string[] = []
+  await page.route(/\/(?:api\/_nuxt_icon\/|api\.iconify\.design\/)/, (route) => {
+    iconRequests.push(route.request().url())
+    return route.abort()
+  })
+  await page.goto('/')
+  const logout = page.getByRole('button', { name: 'Выйти', exact: true }).locator('.iconify')
+  const draft = page.getByText('Без реализации', { exact: true }).locator('.iconify')
+  for (const icon of [logout, draft]) {
+    await expect(icon).toBeVisible()
+    await expect.poll(() => icon.evaluate(element => getComputedStyle(element).maskImage)).toContain('data:image/svg+xml')
+  }
+  expect(iconRequests).toEqual([])
+})
+
 test('create, version, execute, rename, delete and restore a function', async ({ page }, info) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
