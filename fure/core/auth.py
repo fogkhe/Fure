@@ -5,6 +5,7 @@ from uuid import UUID
 
 
 class Permission(StrEnum):
+    MCP_ACCESS = "mcp.access"
     FUNCTIONS_READ = "functions.read"
     FUNCTIONS_CREATE = "functions.create"
     FUNCTIONS_UPDATE = "functions.update"
@@ -60,6 +61,7 @@ class APIKey:
     name: str
     prefix: str
     permissions: frozenset[Permission]
+    function_ids: frozenset[UUID]
     created_at: datetime
     expires_at: datetime | None
     revoked_at: datetime | None
@@ -75,6 +77,13 @@ class Principal:
     permissions: frozenset[Permission]
     key_id: UUID | None = None
     csrf_token: str | None = None
+    # None is reserved for user sessions; an empty key scope grants no functions.
+    function_ids: frozenset[UUID] | None = None
 
     def allows(self, permission: Permission) -> bool:
         return permission in self.permissions
+
+    def allows_function(self, id: UUID) -> bool:
+        return self.key_id is None or (
+            self.function_ids is not None and id in self.function_ids
+        )

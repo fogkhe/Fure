@@ -13,11 +13,35 @@ const open = ref(false)
 const secret = ref('')
 const saving = ref(false)
 const formError = ref('')
-const key = reactive({ name: '', permissions: [] as string[], expires: '' })
+const key = reactive({ name: '', permissions: [] as string[], function_ids: [] as string[], expires: '' })
+const editTarget = ref<APIKeyRecord | null>(null)
+const editing = ref(false)
+const editFunctions = ref<string[]>([])
+const editError = ref('')
+function editKey(item: APIKeyRecord) {
+  editTarget.value = item
+  editFunctions.value = [...item.function_ids]
+  editError.value = ''
+  editing.value = true
+}
+async function saveFunctions() {
+  if (!editTarget.value) return
+  saving.value = true
+  editError.value = ''
+  try {
+    await api(`/keys/${editTarget.value.id}`, { method: 'PATCH', body: { function_ids: editFunctions.value } })
+    editing.value = false
+    await refresh()
+  } catch (problem) {
+    editError.value = errorMessage(problem)
+  } finally {
+    saving.value = false
+  }
+}
 const permissions = computed(() => permissionItems(auth.session.value?.permissions || []))
 watch(open, (value) => {
   if (value) {
-    Object.assign(key, { name: '', permissions: [], expires: '' })
+    Object.assign(key, { name: '', permissions: [], function_ids: [], expires: '' })
     formError.value = ''
     secret.value = ''
   }
@@ -27,7 +51,7 @@ async function createKey() {
   formError.value = ''
   try {
     const result = await api<APIKeyRecord & { secret: string }>('/keys', { method: 'POST', body: {
-      name: key.name, permissions: key.permissions, expires_at: key.expires ? new Date(key.expires).toISOString() : null
+      name: key.name, permissions: key.permissions, function_ids: key.function_ids, expires_at: key.expires ? new Date(key.expires).toISOString() : null
     } })
     secret.value = result.secret
     page.value = 1
@@ -153,6 +177,14 @@ function keyStatus(item: APIKeyRecord) {
           {{ row.original.expires_at ? formatDate(row.original.expires_at) : 'Без ограничения' }}
         </template>
         <template #actions-cell="{ row }">
+          <UButton
+            v-if="keyStatus(row.original) === 'Активен'"
+            :label="`Функции (${row.original.function_ids.length})`"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            @click="editKey(row.original)"
+          />
           <UButton
             v-if="!row.original.revoked_at"
             label="Отозвать"
@@ -345,9 +377,43 @@ function keyStatus(item: APIKeyRecord) {
               :items="permissions"
             />
           </UFormField>
+          <UFormField
+            label="Доступные функции"
+            name="function_ids"
+          >
+            <KeyFunctionSelect v-model="key.function_ids" />
+          </UFormField>
           <UButton
             type="submit"
             label="Создать ключ"
+            :loading="saving"
+          />
+        </UForm>
+      </template>
+    </UModal>
+    <UModal
+      v-model:open="editing"
+      title="Доступные функции"
+      :description="`API-ключ «${editTarget?.name}»`"
+      :dismissible="!saving"
+      :ui="{ content: 'sm:max-w-xl' }"
+      scrollable
+    >
+      <template #body>
+        <UForm
+          :state="{ function_ids: editFunctions }"
+          class="space-y-5"
+          @submit="saveFunctions"
+        >
+          <UAlert
+            v-if="editError"
+            :description="editError"
+            color="error"
+          />
+          <KeyFunctionSelect v-model="editFunctions" />
+          <UButton
+            type="submit"
+            label="Сохранить функции"
             :loading="saving"
           />
         </UForm>

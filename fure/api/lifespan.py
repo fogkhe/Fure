@@ -26,7 +26,8 @@ async def lifespan(app: FastAPI):
         await executions.start()
         app.state.database = database
         app.state.executions = executions
-        yield
+        async with app.state.mcp_http_app.lifespan(app):
+            yield
     finally:
         app.state.executions = None
         app.state.database = None

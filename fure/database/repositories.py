@@ -64,7 +64,9 @@ class FunctionRepository:
         self._versions[row.id] = row.version
         return function_from_row(row)
 
-    async def list(self, *, page, size, name=None, enabled=None, deleted=False):
+    async def list(
+        self, *, page, size, name=None, enabled=None, deleted=False, function_ids=None
+    ):
         filters = [
             FunctionRow.deleted_at.is_not(None)
             if deleted
@@ -74,6 +76,8 @@ class FunctionRepository:
             filters.append(FunctionRow.name == name)
         if enabled is not None:
             filters.append(FunctionRow.enabled == enabled)
+        if function_ids is not None:
+            filters.append(FunctionRow.id.in_(function_ids))
         rows, total = await paginate(
             self.session,
             select(FunctionRow)
@@ -138,10 +142,12 @@ class RevisionRepository:
         )
         return None if row is None else revision_from_row(row)
 
-    async def list(self, *, page, size, function_id=None):
+    async def list(self, *, page, size, function_id=None, function_ids=None):
         filters = (
             [] if function_id is None else [RevisionRow.function_id == function_id]
         )
+        if function_ids is not None:
+            filters.append(RevisionRow.function_id.in_(function_ids))
         rows, total = await paginate(
             self.session,
             select(RevisionRow)
@@ -187,8 +193,11 @@ class RunRepository:
         revision_id=None,
         status=None,
         user_id=None,
+        function_ids=None,
     ):
         filters = []
+        if function_ids is not None:
+            filters.append(RevisionRow.function_id.in_(function_ids))
         if user_id is not None:
             filters.append(RunRow.user_id == user_id)
         if function_id is not None:

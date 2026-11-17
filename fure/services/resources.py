@@ -17,6 +17,7 @@ from fure.database.repositories import (
     RevisionRepository,
     RunRepository,
 )
+from fure.services.auth import require_function_access
 from fure.services.errors import Conflict, InvalidInput, NotFound
 
 
@@ -41,16 +42,22 @@ async def require_function(
 
 
 class FunctionService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self, session: AsyncSession, principal: Principal | None = None
+    ) -> None:
+        self.principal = principal
         self.session = session
         self.functions = FunctionRepository(session)
         self.revisions = RevisionRepository(session)
 
     async def list(self, **filters) -> tuple[list[Function], int]:
+        if self.principal is not None and self.principal.key_id is not None:
+            filters["function_ids"] = self.principal.function_ids or frozenset()
         async with transaction(self.session):
             return await self.functions.list(**filters)
 
     async def get(self, id: UUID) -> Function:
+        require_function_access(self.principal, id)
         async with transaction(self.session):
             return await require_function(self.functions, id)
 
@@ -68,6 +75,7 @@ class FunctionService:
         return function
 
     async def update(self, id: UUID, changes: dict) -> Function:
+        require_function_access(self.principal, id)
         async with transaction(self.session):
             function = await require_function(self.functions, id, lock=True)
             if function.deleted:
@@ -98,12 +106,14 @@ class FunctionService:
         return function
 
     async def delete(self, id: UUID) -> None:
+        require_function_access(self.principal, id)
         async with transaction(self.session):
             function = await require_function(self.functions, id, lock=True)
             function.delete()
             await self.functions.save(function)
 
     async def undelete(self, id: UUID) -> Function:
+        require_function_access(self.principal, id)
         async with transaction(self.session):
             function = await require_function(self.functions, id, lock=True)
             function.undelete()
@@ -112,12 +122,17 @@ class FunctionService:
 
 
 class RevisionService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self, session: AsyncSession, principal: Principal | None = None
+    ) -> None:
+        self.principal = principal
         self.session = session
         self.revisions = RevisionRepository(session)
         self.functions = FunctionRepository(session)
 
     async def list(self, **filters) -> tuple[list[Revision], int]:
+        if self.principal is not None and self.principal.key_id is not None:
+            filters["function_ids"] = self.principal.function_ids or frozenset()
         async with transaction(self.session):
             return await self.revisions.list(**filters)
 
@@ -126,6 +141,7 @@ class RevisionService:
             revision = await self.revisions.get(id)
             if revision is None:
                 raise NotFound("Revision not found")
+            require_function_access(self.principal, revision.function.id)
             return revision
 
     async def create(
@@ -135,6 +151,7 @@ class RevisionService:
         implementation: BaseImplementation,
         runner_options: BaseRunnerOptions,
     ) -> Revision:
+        require_function_access(self.principal, function_id)
         async with transaction(self.session):
             function = await require_function(self.functions, function_id)
             if function.deleted:
@@ -166,6 +183,8 @@ class RunService:
         self.principal = principal
 
     async def list(self, **filters) -> tuple[list[Run], int]:
+        if self.principal is not None and self.principal.key_id is not None:
+            filters["function_ids"] = self.principal.function_ids or frozenset()
         if self.principal is not None and not self.principal.allows(
             Permission.RUNS_READ_ALL
         ):
@@ -178,6 +197,7 @@ class RunService:
             run = await self.runs.get(id)
             if run is None:
                 raise NotFound("Run not found")
+            require_function_access(self.principal, run.revision.function.id)
             if (
                 self.principal is not None
                 and not self.principal.allows(Permission.RUNS_READ_ALL)

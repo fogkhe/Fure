@@ -163,7 +163,12 @@ class APITests(unittest.TestCase):
         self.revision(function["id"])
         endpoint = f"/v1/functions/{function['id']}/run"
         key = self.client.post(
-            "/v1/keys", json={"name": "run-only", "permissions": ["functions.run"]}
+            "/v1/keys",
+            json={
+                "name": "run-only",
+                "permissions": ["functions.run"],
+                "function_ids": [function["id"]],
+            },
         ).json()["secret"]
         headers = {"Authorization": f"Bearer {key}"}
         for path in (endpoint, "/v1/run/greet"):

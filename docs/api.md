@@ -13,6 +13,11 @@ Use a browser session or `Authorization: Bearer <API key>`. Only functions marke
 management endpoints, scopes and CSRF headers. Read examples below assume an
 administrator session or a key with the corresponding permissions.
 
+API keys also require an explicit function selection, shared by REST and
+[MCP](mcp.md). Out-of-scope functions, revisions and runs are excluded from lists
+and return 404 when addressed directly. Manage the selection with
+`PATCH /v1/keys/{key_id}` and a `function_ids` array.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/v1/functions` | List functions; filter by `name`, `enabled`, `deleted` |

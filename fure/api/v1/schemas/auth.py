@@ -96,7 +96,12 @@ class APIKeyCreateRequest(RequestSchema):
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
     ]
     permissions: set[Permission] = Field(default_factory=set)
+    function_ids: set[UUID] = Field(default_factory=set, max_length=1000)
     expires_at: AwareDatetime | None = None
+
+
+class APIKeyUpdateRequest(ChangesRequest):
+    function_ids: set[UUID] | None = Field(default=None, max_length=1000)
 
 
 class APIKeyResponse(BaseModel):
@@ -105,6 +110,7 @@ class APIKeyResponse(BaseModel):
     name: str
     prefix: str
     permissions: list[Permission]
+    function_ids: list[UUID]
     created_at: AwareDatetime
     expires_at: AwareDatetime | None
     revoked_at: AwareDatetime | None
@@ -150,7 +156,8 @@ def key_response(key):
         **{
             name: getattr(key, name)
             for name in APIKeyResponse.model_fields
-            if name != "permissions"
+            if name not in {"permissions", "function_ids"}
         },
         permissions=sorted(key.permissions),
+        function_ids=sorted(key.function_ids),
     )

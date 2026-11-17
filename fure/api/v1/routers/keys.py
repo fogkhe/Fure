@@ -8,6 +8,7 @@ from fure.api.v1.schemas.auth import (
     APIKeyCreatedResponse,
     APIKeyCreateRequest,
     APIKeyResponse,
+    APIKeyUpdateRequest,
     key_response,
 )
 from fure.api.v1.schemas.common import PaginationRequest, PaginationResponse
@@ -42,6 +43,20 @@ async def create_key(
     key, secret = await service.create_key(principal, **body.model_dump())
     response.headers["Cache-Control"] = "no-store"
     return APIKeyCreatedResponse(**key_response(key).model_dump(), secret=secret)
+
+
+@router.patch("/{key_id}")
+async def update_key(
+    key_id: UUID,
+    body: APIKeyUpdateRequest,
+    principal: PrincipalDep,
+    service: AuthServiceDep,
+) -> APIKeyResponse:
+    return key_response(
+        await service.update_key(
+            principal, key_id, **body.model_dump(exclude_unset=True)
+        )
+    )
 
 
 @router.delete("/{key_id}", status_code=204)

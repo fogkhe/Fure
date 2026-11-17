@@ -13,12 +13,14 @@ from alembic.migration import MigrationContext
 from sqlalchemy import inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
 
+from fure.core.auth import Permission, Principal
 from fure.core.implementations import PythonImplementation
 from fure.core.run import Run, RunStatus
 from fure.core.runners.python.inline import InlinePythonRunnerOptions
 from fure.database.connection import Database
-from fure.database.models import Base, FunctionRow, RunRow
+from fure.database.models import APIKeyRow, Base, FunctionRow, RoleRow, RunRow
 from fure.database.repositories import FunctionRepository, RunRepository
+from fure.services.auth import AuthService
 from fure.services.errors import Conflict, ExecutionCancelled
 from fure.services.execution import ExecutionService
 from fure.services.resources import FunctionService, RevisionService
@@ -300,6 +302,43 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(function.revision.runner_options.reasoning_end_tags, ())
         self.assertIsNone(run.user_id)
         self.assertEqual(run.output, "legacy answer")
+
+    async def test_mcp_migration_preserves_credentials_and_requires_explicit_selection(
+        self,
+    ):
+        auth = AuthService(self.database)
+        user = await auth.create_first_admin("admin", "correct horse battery staple")
+        function = await self.configured_function()
+        key, secret = await auth.create_key(
+            Principal(user=user, permissions=user.permissions),
+            name="legacy",
+            permissions={Permission.FUNCTIONS_RUN},
+            function_ids={function.id},
+        )
+        config = Config()
+        config.set_main_option(
+            "script_location",
+            str(Path(__file__).resolve().parent.parent / "fure/database/migrations"),
+        )
+        async with self.database.engine.begin() as connection:
+
+            def downgrade(sync):
+                config.attributes["connection"] = sync
+                command.downgrade(config, "0002")
+
+            await connection.run_sync(downgrade)
+        await self.database.migrate()
+        principal = await auth.authenticate(secret, api_key=True)
+        self.assertEqual(principal.key_id, key.id)
+        self.assertEqual(principal.permissions, {Permission.FUNCTIONS_RUN})
+        self.assertEqual(principal.function_ids, frozenset())
+        async with self.database.sessions() as session:
+            row = await session.get(APIKeyRow, key.id)
+            self.assertEqual(row.function_ids, [])
+            role = await session.scalar(
+                select(RoleRow).where(RoleRow.protected.is_(True))
+            )
+            self.assertEqual(set(role.permissions), set(Permission))
 
     def test_postgresql_migration_compiles_without_a_server(self):
         buffer = io.StringIO()

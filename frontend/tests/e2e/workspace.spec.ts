@@ -33,7 +33,7 @@ test('workspace icons render without runtime icon requests', async ({ page, requ
   })
   await page.goto('/')
   const logout = page.getByRole('button', { name: 'Выйти', exact: true }).locator('.iconify')
-  const draft = page.getByText('Без реализации', { exact: true }).locator('.iconify')
+  const draft = page.getByRole('link', { name: 'draft_icons_ui', exact: true }).getByText('Без реализации', { exact: true }).locator('.iconify')
   for (const icon of [logout, draft]) {
     await expect(icon).toBeVisible()
     await expect.poll(() => icon.evaluate(element => getComputedStyle(element).maskImage)).toContain('data:image/svg+xml')

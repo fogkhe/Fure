@@ -24,8 +24,10 @@ from fure.database.models import RunRow
 from fure.database.repositories import (
     ACTIVE_STATUSES,
     FunctionRepository,
+    RevisionRepository,
     RunRepository,
 )
+from fure.services.auth import require_function_access
 from fure.services.errors import (
     Conflict,
     ExecutionCancelled,
@@ -115,7 +117,10 @@ class ExecutionService:
             )
             if function is None or function.deleted:
                 raise NotFound("Function not found or deleted")
-            if not function.public:
+            require_function_access(principal, function.id)
+            if not function.public or (
+                principal is not None and principal.key_id is not None
+            ):
                 if principal is None:
                     raise Unauthorized("Authentication required")
                 if not principal.allows(Permission.FUNCTIONS_RUN):
@@ -178,6 +183,8 @@ class ExecutionService:
             row = await session.get(RunRow, id)
             if row is None:
                 raise NotFound("Run not found")
+            revision = await RevisionRepository(session).get(row.revision_id)
+            require_function_access(principal, revision.function.id)
             if row.user_id == principal.user.id:
                 if not principal.allows(Permission.RUNS_CANCEL):
                     raise Forbidden("Permission required: runs.cancel")

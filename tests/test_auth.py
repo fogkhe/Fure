@@ -171,12 +171,14 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(bearer.get("/v1/functions").status_code, 401)
 
     def test_run_ownership_public_execution_and_invalid_credentials(self):
-        self.function()
+        function = self.function()
         role = self.role(["functions.run", "runs.read", "runs.cancel", "keys.manage"])
         user = self.user(roles=[role["id"]])
         owner = self.anonymous()
         login(owner, user["username"])
-        key = self.key(owner, ["functions.run", "runs.read"])
+        key = self.key(
+            owner, ["functions.run", "runs.read"], function_ids=[function["id"]]
+        )
         owner.cookies.clear()
         owner.headers["Authorization"] = "Bearer " + key["secret"]
         own = owner.post("/v1/run/hello", json={})

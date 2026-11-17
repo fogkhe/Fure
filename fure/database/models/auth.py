@@ -46,6 +46,7 @@ class APIKeyRow(Base):
     prefix: Mapped[str] = mapped_column(String(16))
     secret_hash: Mapped[str] = mapped_column(String(64), unique=True)
     permissions: Mapped[list] = mapped_column(JSON)
+    function_ids: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
     expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())

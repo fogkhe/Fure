@@ -31,14 +31,6 @@ async def get_session(
 type SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-def get_function_service(session: SessionDep) -> FunctionService:
-    return FunctionService(session)
-
-
-def get_revision_service(session: SessionDep) -> RevisionService:
-    return RevisionService(session)
-
-
 def get_auth_service(
     database: Annotated[Database, Depends(get_database)],
 ) -> AuthService:
@@ -84,6 +76,18 @@ def get_principal(principal: OptionalPrincipalDep) -> Principal:
 
 
 type PrincipalDep = Annotated[Principal, Depends(get_principal)]
+
+
+def get_function_service(
+    session: SessionDep, principal: PrincipalDep
+) -> FunctionService:
+    return FunctionService(session, principal)
+
+
+def get_revision_service(
+    session: SessionDep, principal: PrincipalDep
+) -> RevisionService:
+    return RevisionService(session, principal)
 
 
 def require_permission(permission: Permission):

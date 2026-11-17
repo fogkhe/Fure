@@ -47,6 +47,7 @@ def key_from_row(row: APIKeyRow) -> APIKey:
             )
         },
         permissions=frozenset(map(Permission, row.permissions)),
+        function_ids=frozenset(map(UUID, row.function_ids)),
     )
 
 

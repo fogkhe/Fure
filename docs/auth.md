@@ -20,6 +20,7 @@ Python and Jinja use the same permissions.
 
 | Permission | Access |
 | --- | --- |
+| `mcp.access` | Connect to MCP using an API key; listing/running tools also needs the corresponding function permissions |
 | `functions.read` | Function metadata, schemas and revision source/settings |
 | `functions.create` | Create functions |
 | `functions.update` | Edit functions, create revisions and choose the current revision |
@@ -32,7 +33,7 @@ Python and Jinja use the same permissions.
 | `runs.cancel_all` | Cancel others' active runs, including anonymous runs (requires `runs.read` and `runs.read_all` for the returned execution details) |
 | `users.manage` | Create/update users, assign roles, reset passwords and block access |
 | `roles.manage` | Create/update/delete roles |
-| `keys.manage` | Create/list/revoke the current user's API keys |
+| `keys.manage` | Create/list/revoke the current user's API keys and change their function selections |
 
 The `admin` role includes every permission and cannot be edited or deleted.
 At least one enabled account assigned that role must remain. The initial
@@ -71,7 +72,7 @@ a browser session. It logs out all sessions, including the requesting browser.
 Create a key with `POST /v1/keys`:
 
 ```json
-{"name":"integration","permissions":["functions.run"],"expires_at":null}
+{"name":"integration","permissions":["functions.run"],"function_ids":["01900000-0000-7000-8000-000000000001"],"expires_at":null}
 ```
 
 The response contains `secret` once. `GET /v1/keys` lists only the current user's
@@ -86,6 +87,16 @@ new owner permissions do not expand existing keys. A key cannot mint a child key
 with permissions beyond its own effective permissions. Keys can manage only the
 owner's keys. Invalid, expired or revoked credentials return 401, including when
 calling a public function. Valid credentials with insufficient permissions return 403.
+
+Keys additionally have an explicit `function_ids` selection, empty by default.
+There is no wildcard mode. The selection restricts REST and MCP access to functions,
+their revisions and their history. Out-of-scope records return 404 and are excluded
+from lists and totals. A public function does not bypass a key's scope or run permission.
+`PATCH /v1/keys/{key_id}` with `{"function_ids": [...]}` replaces an active key's
+selection without changing its secret; changes apply to subsequent requests.
+Child-key creation and scope edits cannot grant functions beyond the requesting key's
+own selection. See [MCP setup and upgrade notes](mcp.md), including assignment of
+functions to pre-existing keys after migration.
 
 ## Public functions and history
 

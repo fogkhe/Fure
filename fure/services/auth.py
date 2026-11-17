@@ -3,7 +3,7 @@ import hashlib
 import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from uuid import uuid7
+from uuid import UUID, uuid7
 
 from pwdlib import PasswordHash
 from sqlalchemy import delete, func, select, text, update
@@ -18,7 +18,7 @@ from fure.database.auth import (
     role_from_row,
     user_from_row,
 )
-from fure.database.models import APIKeyRow, RoleRow, SessionRow, UserRow
+from fure.database.models import APIKeyRow, FunctionRow, RoleRow, SessionRow, UserRow
 from fure.database.models.auth import user_roles
 from fure.services.errors import (
     Conflict,
@@ -44,6 +44,11 @@ def csrf_token(value: str) -> str:
 def require(principal: Principal, permission: Permission) -> None:
     if not principal.allows(permission):
         raise Forbidden(f"Permission required: {permission.value}")
+
+
+def require_function_access(principal: Principal | None, id: UUID) -> None:
+    if principal is not None and not principal.allows_function(id):
+        raise NotFound("Function not found")
 
 
 @asynccontextmanager
@@ -104,6 +109,9 @@ class AuthService:
                 else user.permissions,
                 key_id=credential.id if api_key else None,
                 csrf_token=None if api_key else csrf_token(secret),
+                function_ids=frozenset(map(UUID, credential.function_ids))
+                if api_key
+                else None,
             )
 
     async def login(
@@ -325,7 +333,9 @@ class AuthService:
             )
             return [key_from_row(row) for row in rows], total
 
-    async def create_key(self, principal, *, name, permissions, expires_at=None):
+    async def create_key(
+        self, principal, *, name, permissions, function_ids=(), expires_at=None
+    ):
         require(principal, Permission.KEYS_MANAGE)
         secret = "fure_" + secrets.token_urlsafe(40)
         now = datetime.now(UTC)
@@ -342,6 +352,7 @@ class AuthService:
                 raise Forbidden(
                     "API key permissions cannot exceed the owner's current permissions"
                 )
+            await self._validate_key_functions(session, principal, function_ids)
             row = APIKeyRow(
                 id=uuid7(),
                 user_id=owner.id,
@@ -349,6 +360,7 @@ class AuthService:
                 prefix=secret[:13],
                 secret_hash=secret_hash(secret),
                 permissions=sorted(permissions),
+                function_ids=sorted(map(str, function_ids)),
                 created_at=now,
                 expires_at=expires_at,
                 revoked_at=None,
@@ -356,6 +368,33 @@ class AuthService:
             session.add(row)
             await session.flush()
             return key_from_row(row), secret
+
+    async def _validate_key_functions(self, session, principal, function_ids):
+        for id in function_ids:
+            require_function_access(principal, id)
+        found = set(
+            await session.scalars(
+                select(FunctionRow.id).where(FunctionRow.id.in_(function_ids))
+            )
+        )
+        if found != set(function_ids):
+            raise NotFound("Function not found")
+
+    async def update_key(self, principal, id, *, function_ids):
+        require(principal, Permission.KEYS_MANAGE)
+        async with auth_transaction(self.database) as session:
+            row = await APIKeyRepository(session).get(id, principal.user.id)
+            if row is None:
+                raise NotFound("API key not found")
+            if row.revoked_at is not None or (
+                row.expires_at is not None and row.expires_at <= datetime.now(UTC)
+            ):
+                raise Conflict("API key is revoked or expired")
+            # A restricted key cannot expand another key beyond its own scope.
+            await self._validate_key_functions(session, principal, function_ids)
+            row.function_ids = sorted(map(str, function_ids))
+            await session.flush()
+            return key_from_row(row)
 
     async def revoke_key(self, principal, id):
         require(principal, Permission.KEYS_MANAGE)

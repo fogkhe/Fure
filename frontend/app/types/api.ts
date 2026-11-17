@@ -95,6 +95,7 @@ export interface APIKeyRecord {
   name: string
   prefix: string
   permissions: string[]
+  function_ids: string[]
   created_at: string
   expires_at: string | null
   revoked_at: string | null

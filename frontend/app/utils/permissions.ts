@@ -1,4 +1,5 @@
 export const permissionLabels: Record<string, string> = {
+  'mcp.access': 'Подключение к MCP',
   'functions.read': 'Чтение функций и реализаций',
   'functions.create': 'Создание функций',
   'functions.update': 'Редактирование функций и реализаций',

@@ -5,6 +5,9 @@ The [REST API contract](docs/api.md) covers functions, immutable revisions,
 execution history and synchronous execution by function name.
 Interactive documentation is available at `/docs` when the service is running.
 
+The [MCP server](docs/mcp.md) exposes selected functions as tools at `/mcp/`,
+using API keys with explicit function selections shared with REST.
+
 SQLite is used by default; PostgreSQL is configured through `DATABASE_URL`.
 Migrations, execution tasks and database resources are managed by the application
 [lifespan](docs/storage.md). Run `uv run uvicorn fure.api:app --reload` to start.

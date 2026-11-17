@@ -10,6 +10,7 @@ from fure.api import (
     v1,
 )
 from fure.api.lifespan import lifespan
+from fure.api.mcp import create_mcp_app
 from fure.services.errors import (
     Conflict,
     ExecutionCancelled,
@@ -35,11 +36,13 @@ def create_app(configuration: Settings | None = None) -> FastAPI:
     )
     application.include_router(v1.router, prefix="/v1")
     application.include_router(health.router)
+    application.state.mcp_http_app = create_mcp_app(application)
+    application.mount("/mcp", application.state.mcp_http_app)
 
     @application.middleware("http")
     async def private_api(request: Request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith("/v1/"):
+        if request.url.path.startswith(("/v1/", "/mcp")):
             response.headers["Cache-Control"] = "no-store"
         return response
 
