@@ -54,18 +54,6 @@ onUnmounted(() => clearInterval(timer))
       </template>
       <UNavigationMenu :items="items" />
       <template #right>
-        <UTooltip :text="error ? t('ui.checkApiConnection') : t('ui.connectionToFureApi')">
-          <UButton
-            :label="error ? t('ui.apiUnavailable') : health ? t('ui.apiConnected') : t('ui.connecting')"
-            :color="error ? 'error' : health ? 'primary' : 'neutral'"
-            variant="ghost"
-            size="xs"
-            icon="i-lucide-circle"
-            class="hidden md:inline-flex"
-            @click="refresh()"
-          />
-        </UTooltip>
-        <UColorModeButton :aria-label="t('ui.switchTheme')" />
         <UButton
           v-if="auth.session.value"
           to="/account"
@@ -93,11 +81,32 @@ onUnmounted(() => clearInterval(timer))
     </UHeader>
     <UMain><NuxtPage /></UMain>
     <USeparator />
-    <UFooter>
+    <UFooter
+      :ui="{
+        container: 'flex flex-wrap items-center justify-between gap-3 py-4',
+        left: 'order-1 mt-0 justify-start',
+        center: 'hidden',
+        right: 'order-2 ml-auto justify-end'
+      }"
+    >
       <template #left>
         <LanguageSelect />
+        <UColorModeButton
+          size="sm"
+          :aria-label="t('ui.switchTheme')"
+        />
       </template>
       <template #right>
+        <UTooltip :text="error ? t('ui.checkApiConnection') : t('ui.connectionToFureApi')">
+          <UButton
+            :label="error ? t('ui.apiUnavailable') : health ? t('ui.apiConnected') : t('ui.connecting')"
+            :color="error ? 'error' : health ? 'primary' : 'neutral'"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-circle"
+            @click="refresh()"
+          />
+        </UTooltip>
         <UButton
           to="/api/openapi.json"
           external
