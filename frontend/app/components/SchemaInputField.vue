@@ -34,20 +34,35 @@ const kind = computed(() => {
 })
 const enumItems = computed(() => Array.isArray(node.value.enum) ? node.value.enum.map((item, index) => ({ label: typeof item === 'string' ? item : JSON.stringify(item), value: String(index) })) : [])
 const enumIndex = computed(() => enumItems.value.find(item => JSON.stringify((node.value.enum as JsonValue[])[Number(item.value)]) === JSON.stringify(value.value))?.value)
+// The request itself and fields with a single declared type still use their schema.
+const textOrJson = computed(() => props.depth > 0 && (node.value.type === undefined
+  || (Array.isArray(node.value.type) && node.value.type.includes('string'))))
 const draft = ref('')
-watch(value, (next, previous) => {
-  if (JSON.stringify(next) === JSON.stringify(previous)) return
+
+function parseDraft(source: string): JsonValue {
   try {
-    if (JSON.stringify(JSON.parse(draft.value)) === JSON.stringify(next)) return
+    return parseInputJson(source)
+  } catch (problem) {
+    if (textOrJson.value) return source
+    throw problem
+  }
+}
+
+watch([value, textOrJson], ([next, flexible], [previous, wasFlexible]) => {
+  if (flexible === wasFlexible && JSON.stringify(next) === JSON.stringify(previous)) return
+  try {
+    if (JSON.stringify(parseDraft(draft.value)) === JSON.stringify(next)) return
   } catch { /* External edits replace an invalid draft. */ }
-  draft.value = JSON.stringify(next, null, 2) ?? ''
+  // Quote strings that would otherwise be read as a different JSON value.
+  draft.value = flexible && typeof next === 'string' && parseDraft(next) === next
+    ? next
+    : JSON.stringify(next, null, 2) ?? ''
 }, { immediate: true, deep: true })
-function editJson(event: Event) {
+function editDraft(event: Event) {
   const target = event.target as HTMLTextAreaElement
   draft.value = target.value
   try {
-    const parsed = parseInputJson(target.value)
-    value.value = parsed
+    value.value = parseDraft(target.value)
     target.setCustomValidity('')
   } catch {
     target.setCustomValidity(t('inputEditor.invalidJson'))
@@ -213,16 +228,16 @@ const controlClass = 'w-full rounded-md border border-default bg-default px-3 py
           class="space-y-2"
         >
           <p class="text-xs text-muted">
-            {{ t('inputEditor.jsonFallback') }}
+            {{ t(textOrJson ? 'inputEditor.textOrJson' : 'inputEditor.jsonFallback') }}
           </p>
           <textarea
             :value="draft"
             :aria-label="title"
-            :class="[controlClass, 'font-mono']"
+            :class="[controlClass, { 'font-mono': !textOrJson }]"
             rows="5"
             :disabled="disabled"
             spellcheck="false"
-            @input="editJson"
+            @input="editDraft"
           />
         </div>
       </template>

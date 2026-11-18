@@ -102,3 +102,41 @@ test('invalid JSON stays editable, unknown properties survive, and schema-free i
   await expect(page.getByRole('combobox', { name: 'Input editor', exact: true })).toHaveCount(0)
   await expect(page.getByRole('textbox', { name: 'Input · JSON', exact: true })).toHaveValue('null')
 })
+
+test('untyped fields accept multiline text and parse JSON without changing explicit strings', async ({ page, request }) => {
+  const record = await seed(request, 'text-or-json-fields-ui', `from typing import Any
+from pydantic import BaseModel
+
+class Input(BaseModel):
+    message: Any
+    payload: Any
+    label: str
+
+async def function(input: Input) -> dict:
+    return input.model_dump()
+`)
+  await page.goto(`/functions/${record.id}`)
+  const message = page.getByRole('textbox', { name: 'Message (message)', exact: true })
+  const payload = page.getByRole('textbox', { name: 'Payload (payload)', exact: true })
+  const label = page.getByRole('textbox', { name: 'Label (label)', exact: true })
+  const text = '  First line\n\nSecond line  '
+  await message.fill(text)
+  await payload.fill('false')
+  await label.fill('false')
+  await mode(page, 'JSON')
+  const editor = page.getByRole('textbox', { name: 'Input · JSON', exact: true })
+  expect(JSON.parse(await editor.inputValue())).toEqual({ message: text, payload: false, label: 'false' })
+
+  await editor.fill(JSON.stringify({ message: 'false', payload: null, label: 'false' }))
+  await mode(page, 'Fields')
+  await expect(message).toHaveValue('"false"')
+  await mode(page, 'JSON')
+  expect(JSON.parse(await editor.inputValue())).toEqual({ message: 'false', payload: null, label: 'false' })
+  await mode(page, 'Fields')
+  await message.fill(text)
+  await payload.fill('{\n  "items": [1, true, null]\n}')
+  const submitted = page.waitForRequest(req => req.method() === 'POST' && req.url().includes(`/functions/${record.id}/run`))
+  await page.getByRole('button', { name: 'Run', exact: true }).click()
+  expect((await submitted).postDataJSON().input).toEqual({ message: text, payload: { items: [1, true, null] }, label: 'false' })
+  await expect(page.getByText('Succeeded', { exact: true })).toBeVisible()
+})

@@ -410,6 +410,7 @@
     "addItem": "Add item",
     "setValue": "Set value",
     "jsonFallback": "Edit this value as JSON. Other fields are preserved.",
+    "textOrJson": "Paste text or JSON. Valid JSON keeps its type. Other text is sent as a string, including line breaks.",
     "invalidJson": "Enter valid JSON with finite numbers."
   }
 }
