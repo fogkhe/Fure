@@ -213,7 +213,7 @@
     "disabled2": "Выключенные",
     "deleted2": "Удалённые",
     "yourWorkspace": "Ваше рабочее пространство",
-    "logicLivesInFunctions": "Логика — в функциях.",
+    "functionRuntimeEnvironment": "Среда выполнения функций",
     "createImplementationsManageVersionsAndTurnCodeIntoA": "Создавайте реализации, управляйте версиями и превращайте код в готовый API.",
     "functionLibrary": "Библиотека функций",
     "exactFunctionName": "Точное имя функции",

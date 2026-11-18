@@ -213,7 +213,7 @@
     "disabled2": "Disabled",
     "deleted2": "Deleted",
     "yourWorkspace": "Your workspace",
-    "logicLivesInFunctions": "Logic lives in functions.",
+    "functionRuntimeEnvironment": "Function Runtime Environment",
     "createImplementationsManageVersionsAndTurnCodeIntoA": "Create implementations, manage versions and turn code into a ready-to-use API.",
     "functionLibrary": "Function library",
     "exactFunctionName": "Exact function name",

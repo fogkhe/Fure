@@ -46,7 +46,7 @@ function state(record: FunctionRecord) {
         <p class="mb-3 text-xs font-semibold tracking-widest text-primary uppercase">
           {{ t('ui.yourWorkspace') }}
         </p><h1 class="text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
-          {{ t('ui.logicLivesInFunctions') }}
+          {{ t('ui.functionRuntimeEnvironment') }}
         </h1><p class="mt-3 max-w-xl text-muted">
           {{ t('ui.createImplementationsManageVersionsAndTurnCodeIntoA') }}
         </p>
