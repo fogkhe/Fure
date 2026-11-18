@@ -122,13 +122,6 @@ async function changeDeletion(restore = false) {
           label="Функция включена"
           description="Выключенная функция сохраняет версии и историю, но не принимает новые запуски."
         />
-        <UButton
-          type="submit"
-          label="Сохранить изменения"
-          icon="i-lucide-check"
-          :disabled="!dirty || record.deleted || !auth.can('functions.update')"
-          :loading="saving"
-        />
         <USwitch
           v-model="state.public"
           label="Публичный запуск"
@@ -141,6 +134,13 @@ async function changeDeletion(restore = false) {
         >
           POST /v1/run/{{ record.name }}
         </p>
+        <UButton
+          type="submit"
+          label="Сохранить изменения"
+          icon="i-lucide-check"
+          :disabled="!dirty || record.deleted || !auth.can('functions.update')"
+          :loading="saving"
+        />
       </UForm>
     </UCard>
     <UCard v-if="!record.deleted && auth.can('functions.delete')">
