@@ -73,7 +73,7 @@ class FunctionRepository:
             else FunctionRow.deleted_at.is_(None)
         ]
         if name is not None:
-            filters.append(FunctionRow.name == name)
+            filters.append(FunctionRow.name.icontains(name, autoescape=True))
         if enabled is not None:
             filters.append(FunctionRow.enabled == enabled)
         if function_ids is not None:

@@ -1,7 +1,7 @@
 from typing import Self
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, JsonValue, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, JsonValue, model_validator
 
 from fure.api.v1.schemas.common import (
     FunctionDescription,
@@ -36,7 +36,9 @@ class FunctionUpdateRequest(RequestSchema):
 
 
 class FunctionListRequest(PaginationRequest):
-    name: FunctionName | None = None
+    name: FunctionName | None = Field(
+        default=None, description="Case-insensitive substring of the function name"
+    )
     enabled: bool | None = None
     deleted: bool = False
 

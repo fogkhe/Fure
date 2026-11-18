@@ -10,6 +10,7 @@ const auth = useAuth()
 const page = ref(1)
 const name = ref('')
 const search = ref('')
+const searchInput = useTemplateRef('searchInput')
 const filter = ref('all')
 const creating = ref(false)
 const filters = computed(() => ([
@@ -19,7 +20,7 @@ const filters = computed(() => ([
   { label: t('ui.deleted2'), value: 'deleted' }
 ]))
 const query = computed(() => ({ page: page.value - 1, size: 12, name: name.value || undefined, deleted: filter.value === 'deleted', enabled: filter.value === 'enabled' ? true : filter.value === 'disabled' ? false : undefined }))
-const { data, status, error, refresh } = await useAsyncData('functions', () => api<Page<FunctionRecord>>('/functions', { query: query.value }), { server: false, watch: [query] })
+const { data, status, error, refresh } = await useAsyncData('functions', (_app, { signal }) => api<Page<FunctionRecord>>('/functions', { query: query.value, signal }), { server: false, watch: [query] })
 const { data: overview, refresh: refreshOverview } = await useAsyncData('overview', async () => {
   const [functions, revisions, runs] = await Promise.all(['/functions', '/revisions', '/runs'].map(url => url === '/runs' && !auth.can('runs.read') ? Promise.resolve(null) : api<Page<unknown>>(url, { query: { size: 1 } })))
   return { functions: functions?.total, revisions: revisions?.total, runs: runs?.total }
@@ -27,9 +28,24 @@ const { data: overview, refresh: refreshOverview } = await useAsyncData('overvie
 watch(filter, () => {
   page.value = 1
 })
-function applySearch() {
-  page.value = 1
-  name.value = search.value.trim()
+watch(() => search.value.trim(), (fragment, _, onCleanup) => {
+  if (fragment === name.value) return
+
+  function applySearch() {
+    page.value = 1
+    name.value = fragment
+  }
+
+  if (!fragment) {
+    applySearch()
+    return
+  }
+  const timeout = setTimeout(applySearch, 250)
+  onCleanup(() => clearTimeout(timeout))
+})
+function clearSearch() {
+  search.value = ''
+  searchInput.value?.inputRef?.focus()
 }
 async function reload() {
   await Promise.all([refresh(), refreshOverview()])
@@ -90,24 +106,29 @@ function state(record: FunctionRecord) {
         />
       </div>
       <div class="flex w-full flex-wrap gap-2 sm:w-auto">
-        <form
-          class="flex w-full min-w-0 gap-1 sm:w-auto"
-          @submit.prevent="applySearch"
+        <UInput
+          ref="searchInput"
+          v-model="search"
+          leading-icon="i-lucide-search"
+          :placeholder="t('ui.search')"
+          :aria-label="t('ui.searchByName')"
+          class="w-full min-w-0 sm:w-56"
         >
-          <UInput
-            v-model="search"
-            icon="i-lucide-search"
-            :placeholder="t('ui.exactFunctionName')"
-            :aria-label="t('ui.searchByName')"
-            class="w-full sm:w-56"
-          /><UButton
-            type="submit"
-            icon="i-lucide-arrow-right"
-            color="neutral"
-            variant="outline"
-            :aria-label="t('ui.search')"
-          />
-        </form>
+          <template
+            v-if="search"
+            #trailing
+          >
+            <UButton
+              type="button"
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :aria-label="t('ui.clearSearch')"
+              @click="clearSearch"
+            />
+          </template>
+        </UInput>
         <USelect
           v-model="filter"
           :items="filters"
@@ -180,7 +201,7 @@ function state(record: FunctionRecord) {
       v-else
       icon="i-lucide-square-function"
       :title="name || filter !== 'all' ? t('ui.noFunctionsFound') : t('ui.yourFirstFunctionStartsHere')"
-      :description="name || filter !== 'all' ? t('ui.changeTheFiltersOrCheckTheExactFunctionName') : t('ui.addPythonCodeOrAJinjaTemplateCreateA')"
+      :description="name || filter !== 'all' ? t('ui.tryAnotherSearchOrChangeFilters') : t('ui.addPythonCodeOrAJinjaTemplateCreateA')"
       :actions="auth.can('functions.create') ? [{ label: t('ui.newFunction'), icon: 'i-lucide-plus', onClick: () => creating = true }] : []"
       class="min-h-72 border border-dashed border-default"
     />

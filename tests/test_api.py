@@ -191,6 +191,30 @@ class APITests(unittest.TestCase):
             )
             self.assertEqual(self.client.post(path, json={}).status_code, 200)
 
+    def test_function_name_search_is_case_insensitive_and_treats_underscores_literally(
+        self,
+    ):
+        self.function("pre-GREET_alpha")
+        self.function("pre_greet_beta", enabled=False)
+        self.function("pre-greetXalpha")
+
+        names = []
+        for page in (0, 1):
+            response = self.client.get(
+                "/v1/functions", params={"name": "Greet_", "size": 1, "page": page}
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            result = response.json()
+            self.assertEqual(result["total"], 2)
+            names.extend(item["name"] for item in result["items"])
+        self.assertCountEqual(names, ["pre-GREET_alpha", "pre_greet_beta"])
+
+        enabled = self.client.get(
+            "/v1/functions", params={"name": "Greet_", "enabled": True}
+        ).json()
+        self.assertEqual(enabled["total"], 1)
+        self.assertEqual(enabled["items"][0]["name"], "pre-GREET_alpha")
+
     def test_function_crud_filters_pagination_and_name_reuse(self):
         first = self.function(description="old")
         self.assertFalse(first["runnable"])

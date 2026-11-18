@@ -44,7 +44,7 @@ FastAPI, so local development does not require CORS configuration.
 
 ## Features
 
-- Functions: creation, exact-name search, status filters and pagination.
+- Functions: creation, partial name search, status filters and pagination.
 - Immutable Python/Inline and Jinja/OpenAI revisions: creation, cloning,
   source/schema inspection and selection of the current revision.
 - Execution with schema-based fields or a JSON editor, output, duration and token counts; the Run button

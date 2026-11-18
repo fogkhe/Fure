@@ -296,3 +296,28 @@ test('mobile layout, theme and recoverable API errors', async ({ page }, info) =
   await page.getByRole('button', { name: 'Повторить', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Повторить', exact: true })).not.toBeVisible()
 })
+
+test('the function catalogue filters while typing and clears from inside the field', async ({ page, request }) => {
+  for (const name of ['catalogue_glue_target', 'catalogue_unrelated']) {
+    const response = await request.post('/api/v1/functions', { data: { name } })
+    expect(response.ok()).toBeTruthy()
+  }
+  await page.goto('/')
+  const search = page.getByRole('textbox', { name: 'Поиск по имени', exact: true })
+  const searchIcons = search.locator('..').locator('[class~="i-lucide:search"]')
+  await expect(search).toHaveAttribute('placeholder', 'Поиск')
+  await expect(searchIcons).toHaveCount(1)
+  const matching = page.getByRole('link', { name: 'catalogue_glue_target', exact: true })
+  const other = page.getByRole('link', { name: 'catalogue_unrelated', exact: true })
+  await expect(other).toBeVisible()
+  await search.fill(' GLUE_ ')
+  await expect(other).toHaveCount(0)
+  await expect(matching).toBeVisible()
+
+  await page.getByRole('button', { name: 'Очистить поиск', exact: true }).click()
+  await expect(search).toHaveValue('')
+  await expect(search).toBeFocused()
+  await expect(searchIcons).toHaveCount(1)
+  await expect(other).toBeVisible()
+  await expect(matching).toBeVisible()
+})

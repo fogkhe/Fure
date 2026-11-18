@@ -41,6 +41,8 @@ List responses have `items`, `total`, `page` and `size`. Pages are zero-based;
 `page=0` and `size=100` are the defaults, with a maximum size of 1000.
 Lists are ordered newest first. Function lists exclude deleted functions by
 default; `deleted=true` selects deleted functions.
+The function list's `name` filter matches a literal substring regardless of case.
+For example, `name=reet` finds `greet` and `GREETING`.
 
 ## Create, version and run a function
 
