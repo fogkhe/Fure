@@ -4,9 +4,9 @@ export function useFormatting() {
   const { t, locale } = useI18n()
   const language = computed(() => locale.value === 'ru' ? 'ru-RU' : 'en-US')
 
-  function formatDate(value: string | null | undefined) {
+  function formatDate(value: string | null | undefined, timeStyle: 'short' | 'medium' = 'short') {
     if (!value) return '—'
-    return new Intl.DateTimeFormat(language.value, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+    return new Intl.DateTimeFormat(language.value, { dateStyle: 'medium', timeStyle }).format(new Date(value))
   }
 
   function formatDuration(value: number | null | undefined) {

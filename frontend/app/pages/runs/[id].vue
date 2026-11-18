@@ -103,19 +103,19 @@ onBeforeUnmount(() => clearInterval(timer))
           <p class="text-xs text-muted">
             {{ t('ui.created') }}
           </p><p class="mt-2 text-sm text-highlighted">
-            {{ formatDate(record.created_at) }}
+            {{ formatDate(record.created_at, 'medium') }}
           </p>
         </UCard><UCard>
           <p class="text-xs text-muted">
             {{ t('ui.started') }}
           </p><p class="mt-2 text-sm text-highlighted">
-            {{ formatDate(record.started_at) }}
+            {{ formatDate(record.started_at, 'medium') }}
           </p>
         </UCard><UCard>
           <p class="text-xs text-muted">
             {{ t('ui.finished') }}
           </p><p class="mt-2 text-sm text-highlighted">
-            {{ formatDate(record.finished_at) }}
+            {{ formatDate(record.finished_at, 'medium') }}
           </p>
         </UCard>
       </div>
