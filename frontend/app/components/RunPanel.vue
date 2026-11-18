@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FunctionRecord, JsonObject, JsonValue, RunRecord, RunResult } from '~/types/api'
-import { inputSchema, isJsonObject, parseInputJson } from '~/utils/inputSchema'
+import { inputSchema, invalidInputFields, isJsonObject, parseInputJson } from '~/utils/inputSchema'
 
 const { formatDuration, errorMessage, translateDetail } = useFormatting()
 const { t } = useI18n()
@@ -19,6 +19,16 @@ const hasFields = computed(() => isJsonObject(rootSchema.value.properties) && Ob
 const inputMode = ref(hasFields.value ? 'fields' : 'json')
 const inputModes = computed(() => [{ label: t('inputEditor.fields'), value: 'fields' }, { label: 'JSON', value: 'json' }])
 const form = useTemplateRef<HTMLFormElement>('inputForm')
+const invalidFields = reactive(new Set<symbol>())
+provide(invalidInputFields, invalidFields)
+
+function validateFields() {
+  if (invalidFields.size) {
+    error.value = t('inputEditor.invalidJson')
+    return false
+  }
+  return form.value?.reportValidity()
+}
 const fieldValue = computed<JsonValue>({
   get: () => {
     try {
@@ -31,7 +41,7 @@ const fieldValue = computed<JsonValue>({
 })
 function changeMode(mode: string | number) {
   if (mode === inputMode.value) return
-  if (inputMode.value === 'fields' && !form.value?.reportValidity()) return
+  if (inputMode.value === 'fields' && !validateFields()) return
   if (mode === 'fields') {
     try {
       const parsed = parseInputJson(input.value)
@@ -65,6 +75,8 @@ watch(() => props.record.revision_id, () => {
 })
 async function execute() {
   if (running.value || !props.record.runnable)
+    return
+  if (inputMode.value === 'fields' && !validateFields())
     return
   error.value = ''
   result.value = null
@@ -198,13 +210,12 @@ onBeforeUnmount(() => controller?.abort())
             label="Input · JSON"
             :description="t('ui.parametersArePassedToTheSelectedImplementation')"
           >
-            <UTextarea
+            <CodeEditor
               v-model="input"
+              language="json"
+              label="Input · JSON"
               :rows="12"
-              class="w-full"
-              :ui="{ base: 'font-mono text-sm' }"
               :disabled="running"
-              spellcheck="false"
             />
           </UFormField>
           <div class="flex flex-wrap items-center justify-between gap-3">

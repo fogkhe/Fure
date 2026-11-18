@@ -61,7 +61,7 @@ selecting it. Python schemas come from type annotations. Jinja input schemas
 come from templates; output schemas are entered as JSON. An empty output
 schema {} requests text; with a nonempty schema, the Structured Outputs switch
 chooses provider enforcement or manual JSON extraction and schema validation.
-Manual mode supports optional reasoning end markers, one per line.
+In manual mode, add each optional reasoning end marker as a separate list item.
 Input fields support strings, numbers, booleans, enums, nested objects and arrays,
 including local schema references and nullable values. Optional fields can be
 omitted from the request. Switching editors preserves values and unknown keys;

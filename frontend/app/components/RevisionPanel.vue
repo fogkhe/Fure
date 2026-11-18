@@ -156,10 +156,12 @@ async function activate() {
           size="sm"
           class="mb-4"
         />
-        <pre
+        <CodeBlock
           v-if="previewTab === 'source'"
-          class="rounded-lg bg-elevated/40 p-4 font-mono text-sm leading-6 whitespace-pre-wrap break-words"
-        >{{ selected.implementation.type === 'python' ? selected.implementation.code : selected.implementation.template }}</pre>
+          :language="selected.implementation.type"
+          :source="selected.implementation.type === 'python' ? selected.implementation.code : selected.implementation.template"
+          class="rounded-lg bg-elevated/40 p-4 font-mono text-sm leading-6"
+        />
         <div
           v-else-if="previewTab === 'schemas'"
           class="space-y-4"

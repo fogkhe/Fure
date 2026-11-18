@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { JsonObject, JsonValue } from '~/types/api'
-import { fieldSample, inputSchema, isJsonObject, parseInputJson } from '~/utils/inputSchema'
+import { fieldSample, inputSchema, invalidInputFields, isJsonObject, parseInputJson } from '~/utils/inputSchema'
 
 const props = withDefaults(defineProps<{
   schema: JsonObject
@@ -38,6 +38,22 @@ const enumIndex = computed(() => enumItems.value.find(item => JSON.stringify((no
 const textOrJson = computed(() => props.depth > 0 && (node.value.type === undefined
   || (Array.isArray(node.value.type) && node.value.type.includes('string'))))
 const draft = ref('')
+const invalidDraft = ref(false)
+const invalidFields = inject(invalidInputFields)
+const fieldKey = Symbol()
+const showDraftError = computed(() => invalidDraft.value && kind.value === 'json'
+  && value.value !== undefined && !(nullable.value && value.value === null))
+watch(showDraftError, (invalid) => {
+  if (invalid) invalidFields?.add(fieldKey)
+  else invalidFields?.delete(fieldKey)
+}, { flush: 'sync' })
+onScopeDispose(() => invalidFields?.delete(fieldKey))
+
+const draftLanguage = computed(() => {
+  const source = draft.value.trim()
+  if (!textOrJson.value || !source || /^[{["]|^(?:true|false|null|[-\d][\d.eE+-]*)$/.test(source)) return 'json'
+  return 'text'
+})
 
 function parseDraft(source: string): JsonValue {
   try {
@@ -57,15 +73,15 @@ watch([value, textOrJson], ([next, flexible], [previous, wasFlexible]) => {
   draft.value = flexible && typeof next === 'string' && parseDraft(next) === next
     ? next
     : JSON.stringify(next, null, 2) ?? ''
+  invalidDraft.value = false
 }, { immediate: true, deep: true })
-function editDraft(event: Event) {
-  const target = event.target as HTMLTextAreaElement
-  draft.value = target.value
+function editDraft(source: string) {
+  draft.value = source
   try {
-    value.value = parseDraft(target.value)
-    target.setCustomValidity('')
+    value.value = parseDraft(source)
+    invalidDraft.value = false
   } catch {
-    target.setCustomValidity(t('inputEditor.invalidJson'))
+    invalidDraft.value = true
   }
 }
 function setProperty(name: string, next: JsonValue | undefined) {
@@ -94,6 +110,7 @@ const controlClass = 'w-full rounded-md border border-default bg-default px-3 py
     :label="title"
     :description="description"
     :required="required"
+    :error="showDraftError ? t('inputEditor.invalidJson') : undefined"
   >
     <div class="space-y-3">
       <UButton
@@ -230,14 +247,14 @@ const controlClass = 'w-full rounded-md border border-default bg-default px-3 py
           <p class="text-xs text-muted">
             {{ t(textOrJson ? 'inputEditor.textOrJson' : 'inputEditor.jsonFallback') }}
           </p>
-          <textarea
-            :value="draft"
-            :aria-label="title"
-            :class="[controlClass, { 'font-mono': !textOrJson }]"
-            rows="5"
+          <CodeEditor
+            :model-value="draft"
+            :language="draftLanguage"
+            :label="title"
+            :rows="5"
             :disabled="disabled"
-            spellcheck="false"
-            @input="editDraft"
+            :invalid="showDraftError"
+            @update:model-value="editDraft"
           />
         </div>
       </template>

@@ -76,12 +76,12 @@ test('language changes update navigation, tabs, forms, permissions, statuses and
   await page.getByRole('tab', { name: 'Версии', exact: true }).click()
   await page.getByRole('button', { name: 'Новая версия', exact: true }).click()
   const dialog = page.getByRole('dialog')
-  await expect(dialog.getByLabel('Python-код', { exact: true })).toHaveValue(/Результат пользователя/)
+  await expect(dialog.getByLabel('Python-код', { exact: true })).toContainText('Результат пользователя')
   // Close the modal to reach the footer, then reopen it in English.
   await dialog.getByLabel('Закрыть', { exact: true }).click()
   await language(page, 'en')
   await page.getByRole('button', { name: 'New version', exact: true }).click()
-  await expect(dialog.getByLabel('Python code', { exact: true })).toHaveValue(/Результат пользователя/)
+  await expect(dialog.getByLabel('Python code', { exact: true })).toContainText('Результат пользователя')
   await dialog.getByLabel('Close', { exact: true }).click()
   for (const [path, heading] of [['/users', 'Users'], ['/roles', 'Roles'], ['/account', 'admin'], ['/runs', 'Run history']]) {
     await page.goto(path!)
@@ -111,7 +111,7 @@ test('login and JSON validation errors use the selected language', async ({ page
   await dialog.getByRole('combobox', { name: 'Implementation', exact: true }).click()
   await page.getByRole('option', { name: 'Jinja · OpenAI', exact: true }).click()
   await dialog.getByLabel('Model', { exact: true }).fill('test-model')
-  await expect(dialog.getByLabel('Jinja template', { exact: true })).toHaveValue('Greet {{ name }} briefly and warmly.')
+  await expect(dialog.getByLabel('Jinja template', { exact: true })).toHaveText('Greet {{ name }} briefly and warmly.')
   await expect(dialog.getByText('{} returns a text response. A non-empty schema defines the JSON output format.', { exact: true })).toBeVisible()
   await dialog.getByRole('combobox', { name: 'Schema editor', exact: true }).click()
   await page.getByRole('option', { name: 'JSON', exact: true }).click()

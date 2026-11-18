@@ -27,7 +27,7 @@ const state = reactive({
   apiKey: '',
   outputSchema: '{}',
   structuredOutputs: true,
-  reasoningEndTags: '',
+  reasoningEndTags: [] as string[],
   activate: true
 })
 const saving = ref(false)
@@ -83,7 +83,7 @@ watch(open, (value) => {
   state.baseUrl = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.base_url : 'https://api.openai.com/v1'
   state.model = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.model : ''
   state.structuredOutputs = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.structured_outputs : true
-  state.reasoningEndTags = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.reasoning_end_tags.join('\n') : ''
+  state.reasoningEndTags = initial?.runner_options.type === 'openai_jinja' ? [...initial.runner_options.reasoning_end_tags] : []
   state.apiKey = ''
   state.activate = true
   created.value = null
@@ -128,7 +128,7 @@ async function save() {
       const timeout = state.timeout === '' ? null : Number(state.timeout)
       const body = state.kind === 'python'
         ? { function_id: props.functionId, implementation: { type: 'python', code: state.code }, runner_options: { type: 'inline_python', timeout } }
-        : { function_id: props.functionId, implementation: { type: 'jinja', template: state.template, output_schema: getOutputSchema() }, runner_options: { type: 'openai_jinja', timeout, base_url: state.baseUrl, model: state.model, api_key: state.apiKey || null, structured_outputs: state.structuredOutputs, reasoning_end_tags: state.reasoningEndTags.split('\n').filter(tag => tag.trim()) } }
+        : { function_id: props.functionId, implementation: { type: 'jinja', template: state.template, output_schema: getOutputSchema() }, runner_options: { type: 'openai_jinja', timeout, base_url: state.baseUrl, model: state.model, api_key: state.apiKey || null, structured_outputs: state.structuredOutputs, reasoning_end_tags: state.reasoningEndTags.filter(tag => tag.trim()) } }
       created.value = await api<RevisionRecord>('/revisions', { method: 'POST', body })
       state.apiKey = ''
       emit('created', created.value)
@@ -186,14 +186,13 @@ async function save() {
           required
           :description="t('ui.anAsyncFunctionInputInputWithArgumentAndReturn')"
         >
-          <UTextarea
+          <CodeEditor
             v-model="state.code"
+            language="python"
             :rows="13"
-            :spellcheck="false"
+            expand
             :disabled="saving || !!created"
-            class="w-full"
-            :ui="{ base: 'font-mono text-sm leading-6' }"
-            :aria-label="t('ui.pythonCode')"
+            :label="t('ui.pythonCode')"
           />
         </UFormField>
         <template v-else>
@@ -202,14 +201,13 @@ async function save() {
             name="template"
             :description="t('ui.templateVariablesAutomaticallyDefineTheInputSchema')"
           >
-            <UTextarea
+            <CodeEditor
               v-model="state.template"
+              language="jinja"
               :rows="5"
-              :spellcheck="false"
+              expand
               :disabled="saving || !!created"
-              class="w-full"
-              :ui="{ base: 'font-mono text-sm' }"
-              :aria-label="t('ui.jinjaTemplate')"
+              :label="t('ui.jinjaTemplate')"
             />
           </UFormField>
           <div class="grid gap-4 sm:grid-cols-2">
@@ -288,15 +286,13 @@ async function save() {
                   :disabled="saving || !!created"
                 />
               </template>
-              <UTextarea
+              <CodeEditor
                 v-else
                 v-model="state.outputSchema"
-                :aria-label="t('ui.outputSchema')"
+                language="json"
+                :label="t('ui.outputSchema')"
                 :rows="8"
-                :spellcheck="false"
                 :disabled="saving || !!created"
-                class="w-full"
-                :ui="{ base: 'font-mono text-sm' }"
               />
             </div>
           </UFormField>
@@ -310,15 +306,47 @@ async function save() {
             v-if="!state.structuredOutputs"
             :label="t('ui.reasoningEndTags')"
             name="reasoningEndTags"
-            :description="t('ui.onePerLineForExampleThinkAnEmptyList')"
+            :description="t('ui.reasoningEndTagsDescription')"
           >
-            <UTextarea
-              v-model="state.reasoningEndTags"
-              :rows="3"
-              :disabled="saving || !!created"
-              :spellcheck="false"
-              class="w-full"
-            />
+            <div class="space-y-2">
+              <div
+                v-for="(_, index) in state.reasoningEndTags"
+                :key="index"
+                class="flex items-start gap-2"
+              >
+                <UFormField class="min-w-0 flex-1">
+                  <UTextarea
+                    v-model="state.reasoningEndTags[index]"
+                    :aria-label="t('ui.reasoningEndTag', { index: index + 1 })"
+                    :rows="1"
+                    autoresize
+                    placeholder="</think>"
+                    :spellcheck="false"
+                    :disabled="saving || !!created"
+                    class="w-full"
+                    :ui="{ base: 'font-mono' }"
+                  />
+                </UFormField>
+                <UButton
+                  type="button"
+                  icon="i-lucide-trash-2"
+                  color="neutral"
+                  variant="ghost"
+                  :aria-label="t('ui.removeReasoningEndTag', { index: index + 1 })"
+                  :disabled="saving || !!created"
+                  @click="state.reasoningEndTags.splice(index, 1)"
+                />
+              </div>
+              <UButton
+                type="button"
+                :label="t('inputEditor.addItem')"
+                color="neutral"
+                variant="soft"
+                size="xs"
+                :disabled="saving || !!created"
+                @click="state.reasoningEndTags.push('')"
+              />
+            </div>
           </UFormField>
         </template>
         <UFormField

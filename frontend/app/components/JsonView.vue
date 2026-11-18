@@ -6,7 +6,8 @@ const props = defineProps<{
   text?: boolean
 }>()
 const toast = useToast()
-const content = computed(() => props.value === undefined ? '—' : props.text && typeof props.value === 'string' ? props.value : (JSON.stringify(props.value, null, 2) ?? '—'))
+const plainText = computed(() => props.text && typeof props.value === 'string')
+const content = computed(() => plainText.value ? props.value as string : (JSON.stringify(props.value, null, 2) ?? '—'))
 async function copy() {
   try {
     await navigator.clipboard.writeText(content.value)
@@ -30,9 +31,11 @@ async function copy() {
         @click="copy"
       />
     </div>
-    <pre
-      class="max-h-96 overflow-auto p-4 text-sm leading-6 whitespace-pre-wrap break-words"
-      :class="{ 'font-sans': text }"
-    >{{ content }}</pre>
+    <CodeBlock
+      :source="content"
+      :language="plainText ? undefined : 'json'"
+      class="max-h-96 overflow-auto p-4 text-sm leading-6"
+      :class="{ 'font-sans': plainText }"
+    />
   </div>
 </template>

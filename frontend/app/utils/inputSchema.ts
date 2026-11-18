@@ -1,4 +1,7 @@
 import type { JsonObject, JsonValue } from '~/types/api'
+import type { InjectionKey } from 'vue'
+
+export const invalidInputFields: InjectionKey<Set<symbol>> = Symbol('invalidInputFields')
 
 export function isJsonObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value)

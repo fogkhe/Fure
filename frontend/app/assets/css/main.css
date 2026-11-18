@@ -5,3 +5,52 @@
 @theme static {
   --font-sans: 'Public Sans Variable', sans-serif;
 }
+
+[data-code-syntax] {
+  --code-keyword: #7b359e;
+  --code-string: #187542;
+  --code-number: #a34c0c;
+  --code-name: #17589c;
+}
+
+.dark [data-code-syntax] {
+  --code-keyword: #d6a5ff;
+  --code-string: #99dbab;
+  --code-number: #ffb477;
+  --code-name: #a2caff;
+}
+
+[data-code-syntax] .tok-keyword { color: var(--code-keyword); }
+[data-code-syntax] :is(.tok-string, .tok-string2, .tok-regexp) { color: var(--code-string); }
+[data-code-syntax] :is(.tok-number, .tok-bool, .tok-null, .tok-atom) { color: var(--code-number); }
+[data-code-syntax] :is(.tok-propertyName, .tok-variableName, .tok-typeName, .tok-attributeName) { color: var(--code-name); }
+[data-code-syntax] :is(.tok-punctuation, .tok-operator) { color: var(--ui-text-muted); }
+[data-code-syntax] .tok-comment { color: var(--ui-text-muted); font-style: italic; }
+
+[data-code-editor] .cm-editor {
+  min-height: var(--code-editor-min-height);
+  line-height: 1.5rem;
+}
+
+[data-code-editor]:not([data-expand]) .cm-editor {
+  max-height: max(var(--code-editor-min-height), min(55vh, 32rem));
+}
+
+.dark [data-code-editor] .cm-editor .cm-selectionBackground {
+  background-color: #26344a;
+}
+
+.dark [data-code-editor] .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background-color: #2c3f5a;
+}
+
+[data-code-editor] .cm-editor.cm-focused { outline: none; }
+[data-code-editor] .cm-editor .cm-scroller { font-family: inherit; }
+[data-code-editor] .cm-editor .cm-content { padding-block: 0.5rem; caret-color: var(--ui-text-highlighted); }
+[data-code-editor] .cm-editor .cm-line { padding-inline: 0.5rem; }
+[data-code-editor] .cm-editor .cm-gutters { background-color: var(--ui-bg-elevated); color: var(--ui-text-muted); border-color: var(--ui-border); }
+[data-code-editor] .cm-editor :is(.cm-activeLine, .cm-activeLineGutter) { background-color: color-mix(in srgb, var(--ui-primary) 7%, transparent); }
+[data-code-editor] .cm-editor .cm-cursor { border-color: var(--ui-text-highlighted); }
+[data-code-editor] .cm-editor .cm-panels { background: var(--ui-bg-elevated); color: var(--ui-text); border-color: var(--ui-border); }
+[data-code-editor] .cm-editor :is(.cm-button, .cm-textfield) { background: var(--ui-bg); color: var(--ui-text); border-color: var(--ui-border); }
+[data-code-editor] .cm-editor .cm-tooltip { background: var(--ui-bg-elevated); color: var(--ui-text); border-color: var(--ui-border); }
