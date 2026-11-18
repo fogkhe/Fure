@@ -9,7 +9,12 @@ export async function login(request: APIRequestContext, username = 'admin') {
   return response.json()
 }
 
-export const test = base.extend({
+export const test = base.extend<{ interfaceLocale: 'en' | 'ru' | null }>({
+  interfaceLocale: ['ru', { option: true }],
+  context: async ({ context, interfaceLocale, baseURL }, use) => {
+    if (interfaceLocale) await context.addCookies([{ name: 'fure_locale', value: interfaceLocale, url: baseURL! }])
+    await use(context)
+  },
   request: async ({ playwright, baseURL }, use) => {
     const guest = await playwright.request.newContext({ baseURL })
     const session = await login(guest)

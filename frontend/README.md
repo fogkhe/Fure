@@ -3,6 +3,18 @@
 A Nuxt 4 / Nuxt UI 4 interface based on the Nuxt UI Starter Template,
 with an orange accent, Public Sans typography and light/dark themes.
 
+The interface supports English (the default) and Russian. The language selector
+is at the bottom left of the footer. A `fure_locale` cookie remembers the choice
+for one year and is read during server rendering, including login redirects.
+The browser's language does not override the default or the saved preference.
+Page URLs remain the same in both languages.
+
+Translations live in `i18n/locales/en.json` and `i18n/locales/ru.json`, using
+`@nuxtjs/i18n`; Nuxt UI follows the active locale. Dates, duration, counts,
+permissions and known API error messages are localized. Function names and
+descriptions, implementation source/templates, schemas, results and raw run
+metadata remain user data and are displayed as stored.
+
 ## Development
 
 Start FastAPI from the repository root:

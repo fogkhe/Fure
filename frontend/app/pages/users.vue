@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { Page, RoleRecord, UserRecord } from '~/types/api'
 
-useSeoMeta({ title: 'Пользователи' })
+const { formatDate, errorMessage } = useFormatting()
+const { t } = useI18n()
+
+useSeoMeta({ title: () => t('ui.users') })
 const api = useApi()
 const auth = useAuth()
 const page = ref(1)
@@ -49,15 +52,15 @@ async function save() {
     <div class="flex flex-wrap items-end justify-between gap-4">
       <div>
         <p class="mb-3 text-sm font-medium text-primary">
-          Управление доступом
+          {{ t('ui.accessManagement') }}
         </p><h1 class="text-3xl font-semibold text-highlighted">
-          Пользователи
+          {{ t('ui.users') }}
         </h1><p class="mt-3 text-muted">
-          Назначайте роли и управляйте доступом к общему каталогу.
+          {{ t('ui.assignRolesAndManageAccessToTheSharedCatalogue') }}
         </p>
       </div>
       <UButton
-        label="Новый пользователь"
+        :label="t('ui.newUser')"
         icon="i-lucide-user-plus"
         @click="edit(null)"
       />
@@ -70,14 +73,14 @@ async function save() {
     <UTable
       :data="data?.items || []"
       :loading="status === 'idle' || status === 'pending'"
-      :columns="[{ accessorKey: 'username', header: 'Логин' }, { id: 'roles', header: 'Роли' }, { id: 'status', header: 'Статус' }, { id: 'created', header: 'Создан' }, { id: 'actions' }]"
-      empty="Пользователи не найдены"
+      :columns="[{ accessorKey: 'username', header: t('ui.username') }, { id: 'roles', header: t('ui.roles') }, { id: 'status', header: t('ui.status') }, { id: 'created', header: t('ui.created') }, { id: 'actions' }]"
+      :empty="t('ui.noUsersFound')"
       class="rounded-xl border border-default"
     >
       <template #username-cell="{ row }">
         <span class="font-medium text-highlighted">{{ row.original.username }}</span><UBadge
           v-if="row.original.id === auth.session.value?.user.id"
-          label="Вы"
+          :label="t('ui.you')"
           size="xs"
           color="neutral"
           variant="subtle"
@@ -97,7 +100,7 @@ async function save() {
       </template>
       <template #status-cell="{ row }">
         <UBadge
-          :label="row.original.enabled ? 'Активен' : 'Заблокирован'"
+          :label="row.original.enabled ? t('ui.active') : t('ui.blocked')"
           :color="row.original.enabled ? 'success' : 'neutral'"
           variant="subtle"
         />
@@ -107,7 +110,7 @@ async function save() {
       </template>
       <template #actions-cell="{ row }">
         <UButton
-          label="Изменить"
+          :label="t('ui.edit')"
           icon="i-lucide-pencil"
           color="neutral"
           variant="ghost"
@@ -125,8 +128,8 @@ async function save() {
     />
     <UModal
       v-model:open="open"
-      :title="selected ? `Пользователь ${selected.username}` : 'Новый пользователь'"
-      description="Разрешения всех назначенных ролей складываются."
+      :title="selected ? t('ui.user', { value1: selected.username }) : t('ui.newUser')"
+      :description="t('ui.permissionsFromAllAssignedRolesAreCombined')"
       :dismissible="!saving"
       @after:leave="state.password = ''"
     >
@@ -142,9 +145,9 @@ async function save() {
             color="error"
           />
           <UFormField
-            label="Логин"
+            :label="t('ui.username')"
             name="username"
-            description="Строчные латинские буквы, цифры, точки, дефисы и подчёркивания."
+            :description="t('ui.lowercaseLatinLettersDigitsDotsHyphensAndUnderscores')"
             required
           >
             <UInput
@@ -156,10 +159,10 @@ async function save() {
             />
           </UFormField>
           <UFormField
-            :label="selected ? 'Новый пароль' : 'Пароль'"
+            :label="selected ? t('ui.newPassword') : t('ui.password')"
             name="password"
             :required="!selected"
-            :description="selected ? 'Оставьте пустым, чтобы сохранить текущий пароль. Новый пароль завершит все сеансы пользователя.' : 'От 12 до 256 символов.'"
+            :description="selected ? t('ui.leaveEmptyToKeepTheCurrentPasswordSettingA') : t('ui.use12256Characters')"
           >
             <UInput
               v-model="state.password"
@@ -177,7 +180,7 @@ async function save() {
             @retry="refreshRoles()"
           />
           <UFormField
-            label="Роли"
+            :label="t('ui.roles')"
             name="role_ids"
           >
             <UCheckboxGroup
@@ -187,12 +190,12 @@ async function save() {
           </UFormField>
           <USwitch
             v-model="state.enabled"
-            label="Пользователь активен"
-            description="Блокировка завершает сеансы и отзывает все API-ключи."
+            :label="t('ui.userEnabled')"
+            :description="t('ui.blockingEndsAllSessionsAndRevokesAllApiKeys')"
           />
           <UButton
             type="submit"
-            :label="selected ? 'Сохранить пользователя' : 'Создать пользователя'"
+            :label="selected ? t('ui.saveUser') : t('ui.createUser')"
             :loading="saving"
             :disabled="!!rolesError"
           />

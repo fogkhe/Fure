@@ -1,19 +1,20 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const route = useRoute()
 const functionId = computed(() => typeof route.query.function_id === 'string' ? route.query.function_id : undefined)
 const revisionId = computed(() => typeof route.query.revision_id === 'string' ? route.query.revision_id : undefined)
-useSeoMeta({ title: 'История запусков' })
+useSeoMeta({ title: () => t('ui.runHistory') })
 </script>
 
 <template>
   <UContainer class="py-8 sm:py-12">
     <div class="mb-8">
       <p class="mb-3 text-sm font-medium text-primary">
-        Наблюдаемость
+        {{ t('ui.observability') }}
       </p><h1 class="text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
-        История запусков
+        {{ t('ui.runHistory') }}
       </h1><p class="mt-3 text-muted">
-        Входные данные, результаты и время выполнения каждого вызова.
+        {{ t('ui.inputDataResultsAndExecutionTimeForEveryCall') }}
       </p>
     </div>
     <UAlert
@@ -21,9 +22,9 @@ useSeoMeta({ title: 'История запусков' })
       class="mb-5"
       color="neutral"
       icon="i-lucide-filter"
-      title="История отфильтрована"
-      :description="[functionId ? `Функция: ${functionId}` : '', revisionId ? `Версия: ${revisionId}` : ''].filter(Boolean).join(' · ')"
-      :actions="[{ label: 'Сбросить', to: '/runs', variant: 'outline', color: 'neutral' }]"
+      :title="t('ui.historyIsFiltered')"
+      :description="[functionId ? t('ui.function2', { value1: functionId }) : '', revisionId ? t('ui.version', { value1: revisionId }) : ''].filter(Boolean).join(' · ')"
+      :actions="[{ label: t('ui.reset'), to: '/runs', variant: 'outline', color: 'neutral' }]"
     />
     <RunHistory
       :function-id="functionId"

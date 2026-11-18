@@ -38,6 +38,6 @@ export function sampleInput(schema: JsonObject): JsonValue {
 
 export function parseObject(source: string): JsonObject {
   const value: JsonValue = JSON.parse(source)
-  if (!object(value)) throw new Error('Схема должна быть JSON-объектом, например {}.')
+  if (!object(value)) throw new Error('schema.objectRequired')
   return value
 }

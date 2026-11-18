@@ -2,6 +2,9 @@
 import type { FormError } from '@nuxt/ui'
 import type { FunctionRecord } from '~/types/api'
 
+const { errorMessage } = useFormatting()
+const { t } = useI18n()
+
 const open = defineModel<boolean>('open', { default: false })
 const api = useApi()
 const auth = useAuth()
@@ -18,9 +21,9 @@ watch(open, (value) => {
 function validate(): FormError[] {
   const errors: FormError[] = []
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(state.name))
-    errors.push({ name: 'name', message: 'От 1 до 64 латинских букв, цифр, дефисов или подчёркиваний.' })
+    errors.push({ name: 'name', message: t('ui.use164LatinLettersDigitsHyphensOrUnderscores') })
   if (state.description.length > 1000)
-    errors.push({ name: 'description', message: 'Максимум 1000 символов.' })
+    errors.push({ name: 'description', message: t('ui.maximum1000Characters') })
   return errors
 }
 async function create() {
@@ -43,8 +46,8 @@ async function create() {
 <template>
   <UModal
     v-model:open="open"
-    title="Новая функция"
-    description="Задайте имя, затем добавьте реализацию на Python или Jinja."
+    :title="t('ui.newFunction')"
+    :description="t('ui.chooseANameThenAddAPythonOrJinja')"
     :dismissible="!saving"
   >
     <template #body>
@@ -61,27 +64,27 @@ async function create() {
           icon="i-lucide-circle-alert"
         />
         <UFormField
-          label="Имя функции"
+          :label="t('ui.functionName')"
           name="name"
           required
-          description="Это имя будет использоваться для запуска через API."
+          :description="t('ui.thisNameWillBeUsedToRunTheFunction')"
         >
           <UInput
             v-model="state.name"
-            placeholder="Например, greet"
+            :placeholder="t('ui.forExampleGreet')"
             autofocus
             class="w-full"
             :disabled="saving"
           />
         </UFormField>
         <UFormField
-          label="Описание"
+          :label="t('ui.description')"
           name="description"
-          hint="Необязательно"
+          :hint="t('ui.optional')"
         >
           <UTextarea
             v-model="state.description"
-            placeholder="Что делает эта функция?"
+            :placeholder="t('ui.whatDoesThisFunctionDo')"
             :rows="3"
             class="w-full"
             :disabled="saving"
@@ -89,14 +92,14 @@ async function create() {
         </UFormField>
         <div class="flex justify-end gap-2">
           <UButton
-            label="Отмена"
+            :label="t('ui.cancel')"
             color="neutral"
             variant="ghost"
             :disabled="saving"
             @click="open = false"
           /><UButton
             type="submit"
-            label="Создать функцию"
+            :label="t('ui.createFunction')"
             icon="i-lucide-plus"
             :loading="saving"
           />

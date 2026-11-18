@@ -1,27 +1,28 @@
 <script setup lang="ts">
-import { ru } from '@nuxt/ui/locale'
 import type { NavigationMenuItem } from '@nuxt/ui'
 
-useHead({
+const { errorMessage } = useFormatting()
+const { t, locale } = useI18n()
+useHead(() => ({
   titleTemplate: '%s · Fure',
-  htmlAttrs: { lang: 'ru' },
+  htmlAttrs: { lang: locale.value },
   meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
   link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]
-})
-useSeoMeta({ description: 'Функции, версии реализаций и история запусков в одном месте.' })
+}))
+useSeoMeta({ description: () => t('ui.functionsImplementationVersionsAndRunHistoryInOnePlace') })
 const auth = useAuth()
 const toast = useToast()
 const items = computed<NavigationMenuItem[]>(() => [
-  ...(auth.can('functions.read') ? [{ label: 'Функции', icon: 'i-lucide-square-function', to: '/', exact: true }] : []),
-  ...(auth.can('runs.read') ? [{ label: 'Запуски', icon: 'i-lucide-activity', to: '/runs' }] : []),
-  ...(auth.can('users.manage') ? [{ label: 'Пользователи', icon: 'i-lucide-users', to: '/users' }] : []),
-  ...(auth.can('roles.manage') ? [{ label: 'Роли', icon: 'i-lucide-shield', to: '/roles' }] : [])
+  ...(auth.can('functions.read') ? [{ label: t('ui.functions'), icon: 'i-lucide-square-function', to: '/', exact: true }] : []),
+  ...(auth.can('runs.read') ? [{ label: t('ui.runs'), icon: 'i-lucide-activity', to: '/runs' }] : []),
+  ...(auth.can('users.manage') ? [{ label: t('ui.users'), icon: 'i-lucide-users', to: '/users' }] : []),
+  ...(auth.can('roles.manage') ? [{ label: t('ui.roles'), icon: 'i-lucide-shield', to: '/roles' }] : [])
 ])
 async function logout() {
   try {
     await auth.logout()
   } catch (problem) {
-    toast.add({ title: 'Не удалось выйти', description: errorMessage(problem), color: 'error' })
+    toast.add({ title: t('ui.couldNotSignOut'), description: errorMessage(problem), color: 'error' })
   }
 }
 const { data: health, error, refresh } = await useAsyncData('api-health', () => $fetch<{
@@ -39,14 +40,13 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <UApp
-    :locale="ru"
     :toaster="{ position: 'bottom-right' }"
   >
     <UHeader>
       <template #left>
         <NuxtLink
           to="/"
-          aria-label="Fure — главная"
+          :aria-label="t('ui.fureHome')"
           class="rounded-md focus-visible:outline-2 focus-visible:outline-primary"
         >
           <AppLogo />
@@ -61,9 +61,9 @@ onUnmounted(() => clearInterval(timer))
       </template>
       <UNavigationMenu :items="items" />
       <template #right>
-        <UTooltip :text="error ? 'Проверить подключение к API' : 'Соединение с Fure API'">
+        <UTooltip :text="error ? t('ui.checkApiConnection') : t('ui.connectionToFureApi')">
           <UButton
-            :label="error ? 'API недоступен' : health ? 'API подключен' : 'Подключение…'"
+            :label="error ? t('ui.apiUnavailable') : health ? t('ui.apiConnected') : t('ui.connecting')"
             :color="error ? 'error' : health ? 'primary' : 'neutral'"
             variant="ghost"
             size="xs"
@@ -72,7 +72,7 @@ onUnmounted(() => clearInterval(timer))
             @click="refresh()"
           />
         </UTooltip>
-        <UColorModeButton aria-label="Переключить тему" />
+        <UColorModeButton :aria-label="t('ui.switchTheme')" />
         <UButton
           v-if="auth.session.value"
           to="/account"
@@ -85,7 +85,7 @@ onUnmounted(() => clearInterval(timer))
         <UButton
           v-if="auth.session.value"
           icon="i-lucide-log-out"
-          aria-label="Выйти"
+          :aria-label="t('ui.signOut')"
           color="neutral"
           variant="ghost"
           @click="logout"
@@ -102,13 +102,12 @@ onUnmounted(() => clearInterval(timer))
     <USeparator />
     <UFooter>
       <template #left>
-        <p class="text-xs text-muted">
-          Fure <span class="mx-2 text-dimmed">/</span> Function Runtime Environment
-        </p>
+        <LanguageSelect />
       </template>
       <template #right>
         <UButton
           to="/api/openapi.json"
+          external
           target="_blank"
           label="OpenAPI"
           trailing-icon="i-lucide-arrow-up-right"

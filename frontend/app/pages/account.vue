@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type { APIKeyRecord, Page } from '~/types/api'
 
-useSeoMeta({ title: 'Мой аккаунт' })
+const { permissionLabel, permissionItems } = usePermissions()
+const { formatDate, errorMessage } = useFormatting()
+const { t } = useI18n()
+
+useSeoMeta({ title: () => t('ui.myAccount') })
 const auth = useAuth()
 const api = useApi()
 const toast = useToast()
@@ -74,7 +78,7 @@ async function revoke() {
     revokeTarget.value = null
     await refresh()
   } catch (problem) {
-    toast.add({ title: 'Не удалось отозвать ключ', description: errorMessage(problem), color: 'error' })
+    toast.add({ title: t('ui.couldNotRevokeKey'), description: errorMessage(problem), color: 'error' })
   } finally {
     saving.value = false
   }
@@ -83,7 +87,7 @@ const password = reactive({ current_password: '', new_password: '', confirmation
 const passwordError = ref('')
 async function changePassword() {
   if (password.new_password !== password.confirmation) {
-    passwordError.value = 'Пароли не совпадают.'
+    passwordError.value = t('ui.passwordsDoNotMatch')
     return
   }
   saving.value = true
@@ -92,7 +96,7 @@ async function changePassword() {
     await api('/auth/password', { method: 'POST', body: { current_password: password.current_password, new_password: password.new_password } })
     Object.assign(password, { current_password: '', new_password: '', confirmation: '' })
     auth.clear()
-    toast.add({ title: 'Пароль изменён. Войдите снова.', color: 'success' })
+    toast.add({ title: t('ui.passwordChangedPleaseSignInAgain'), color: 'success' })
     await navigateTo('/login')
   } catch (problem) {
     passwordError.value = errorMessage(problem)
@@ -103,13 +107,13 @@ async function changePassword() {
 async function copySecret() {
   try {
     await navigator.clipboard.writeText(secret.value)
-    toast.add({ title: 'Ключ скопирован', color: 'success' })
+    toast.add({ title: t('ui.keyCopied'), color: 'success' })
   } catch {
-    toast.add({ title: 'Скопируйте ключ вручную', color: 'warning' })
+    toast.add({ title: t('ui.copyTheKeyManually'), color: 'warning' })
   }
 }
 function keyStatus(item: APIKeyRecord) {
-  return item.revoked_at ? 'Отозван' : item.expires_at && new Date(item.expires_at) <= new Date() ? 'Истёк' : 'Активен'
+  return item.revoked_at ? t('ui.revoked') : item.expires_at && new Date(item.expires_at) <= new Date() ? t('ui.expired') : t('ui.active')
 }
 </script>
 
@@ -117,7 +121,7 @@ function keyStatus(item: APIKeyRecord) {
   <UContainer class="space-y-8 py-8 sm:py-12">
     <div>
       <p class="mb-3 text-sm font-medium text-primary">
-        Личный кабинет
+        {{ t('ui.account') }}
       </p>
       <h1 class="text-3xl font-semibold tracking-tight text-highlighted">
         {{ auth.session.value?.user.username }}
@@ -137,13 +141,13 @@ function keyStatus(item: APIKeyRecord) {
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 class="font-semibold text-highlighted">
-              API-ключи
+              {{ t('ui.apiKeys') }}
             </h2><p class="mt-1 text-sm text-muted">
-              Доступ интеграций в пределах ваших разрешений.
+              {{ t('ui.integrationAccessWithinYourPermissions') }}
             </p>
           </div>
           <UButton
-            label="Создать ключ"
+            :label="t('ui.createKey')"
             icon="i-lucide-plus"
             @click="open = true"
           />
@@ -157,8 +161,8 @@ function keyStatus(item: APIKeyRecord) {
       <UTable
         :data="data?.items || []"
         :loading="status === 'idle' || status === 'pending'"
-        :columns="[{ accessorKey: 'name', header: 'Название' }, { accessorKey: 'prefix', header: 'Ключ' }, { id: 'status', header: 'Статус' }, { id: 'permissions', header: 'Разрешения' }, { id: 'expires', header: 'Срок действия' }, { id: 'actions' }]"
-        empty="API-ключей пока нет"
+        :columns="[{ accessorKey: 'name', header: t('ui.name') }, { accessorKey: 'prefix', header: t('ui.key') }, { id: 'status', header: t('ui.status') }, { id: 'permissions', header: t('ui.permissions') }, { id: 'expires', header: t('ui.expiration') }, { id: 'actions' }]"
+        :empty="t('ui.noApiKeysYet')"
       >
         <template #prefix-cell="{ row }">
           <code>{{ row.original.prefix }}…</code>
@@ -166,20 +170,20 @@ function keyStatus(item: APIKeyRecord) {
         <template #status-cell="{ row }">
           <UBadge
             :label="keyStatus(row.original)"
-            :color="keyStatus(row.original) === 'Активен' ? 'success' : 'neutral'"
+            :color="keyStatus(row.original) === t('ui.active') ? 'success' : 'neutral'"
             variant="subtle"
           />
         </template>
         <template #permissions-cell="{ row }">
-          <span class="text-sm text-muted">{{ row.original.permissions.length }} разрешений</span>
+          <span class="text-sm text-muted">{{ t('counts.permissions', row.original.permissions.length) }}</span>
         </template>
         <template #expires-cell="{ row }">
-          {{ row.original.expires_at ? formatDate(row.original.expires_at) : 'Без ограничения' }}
+          {{ row.original.expires_at ? formatDate(row.original.expires_at) : t('ui.noExpiration') }}
         </template>
         <template #actions-cell="{ row }">
           <UButton
-            v-if="keyStatus(row.original) === 'Активен'"
-            :label="`Функции (${row.original.function_ids.length})`"
+            v-if="keyStatus(row.original) === t('ui.active')"
+            :label="t('ui.functions2', { value1: row.original.function_ids.length })"
             color="neutral"
             variant="ghost"
             size="xs"
@@ -187,7 +191,7 @@ function keyStatus(item: APIKeyRecord) {
           />
           <UButton
             v-if="!row.original.revoked_at"
-            label="Отозвать"
+            :label="t('ui.revoke')"
             color="error"
             variant="ghost"
             size="xs"
@@ -207,7 +211,7 @@ function keyStatus(item: APIKeyRecord) {
       <UCard>
         <template #header>
           <h2 class="font-semibold text-highlighted">
-            Смена пароля
+            {{ t('ui.changePassword') }}
           </h2>
         </template>
         <UForm
@@ -221,7 +225,7 @@ function keyStatus(item: APIKeyRecord) {
             color="error"
           />
           <UFormField
-            label="Текущий пароль"
+            :label="t('ui.currentPassword')"
             name="current_password"
             required
           >
@@ -234,9 +238,9 @@ function keyStatus(item: APIKeyRecord) {
             />
           </UFormField>
           <UFormField
-            label="Новый пароль"
+            :label="t('ui.newPassword')"
             name="new_password"
-            description="От 12 до 256 символов."
+            :description="t('ui.use12256Characters')"
             required
           >
             <UInput
@@ -250,7 +254,7 @@ function keyStatus(item: APIKeyRecord) {
             />
           </UFormField>
           <UFormField
-            label="Повторите новый пароль"
+            :label="t('ui.confirmNewPassword')"
             name="confirmation"
             required
           >
@@ -263,11 +267,11 @@ function keyStatus(item: APIKeyRecord) {
             />
           </UFormField>
           <p class="text-sm text-muted">
-            После смены пароля все сеансы будут завершены.
+            {{ t('ui.changingYourPasswordWillEndAllSessions') }}
           </p>
           <UButton
             type="submit"
-            label="Изменить пароль"
+            :label="t('ui.changePassword2')"
             :loading="saving"
           />
         </UForm>
@@ -275,7 +279,7 @@ function keyStatus(item: APIKeyRecord) {
       <UCard>
         <template #header>
           <h2 class="font-semibold text-highlighted">
-            Ваши разрешения
+            {{ t('ui.yourPermissions') }}
           </h2>
         </template>
         <ul class="space-y-2 text-sm text-muted">
@@ -287,21 +291,21 @@ function keyStatus(item: APIKeyRecord) {
             <UIcon
               name="i-lucide-check"
               class="shrink-0 text-primary"
-            />{{ permissionLabels[permission] || permission }}
+            />{{ permissionLabel(permission) }}
           </li>
         </ul>
         <p
           v-if="!auth.session.value?.permissions.length"
           class="text-sm text-muted"
         >
-          Разрешения пока не назначены. Обратитесь к администратору.
+          {{ t('ui.noPermissionsAssignedYetContactYourAdministrator') }}
         </p>
       </UCard>
     </div>
     <UModal
       v-model:open="open"
-      title="Новый API-ключ"
-      description="Выберите только необходимые интеграции разрешения."
+      :title="t('ui.newApiKey')"
+      :description="t('ui.selectOnlyThePermissionsThisIntegrationNeeds')"
       :dismissible="!saving"
       :ui="{ content: 'sm:max-w-xl' }"
       scrollable
@@ -313,22 +317,22 @@ function keyStatus(item: APIKeyRecord) {
           class="space-y-4"
         >
           <UAlert
-            title="Сохраните ключ сейчас"
-            description="Это единственный раз, когда секрет показывается целиком."
+            :title="t('ui.saveYourKeyNow')"
+            :description="t('ui.thisIsTheOnlyTimeTheFullSecretIs')"
             color="warning"
             icon="i-lucide-key-round"
           />
           <code class="block rounded-lg border border-default bg-elevated p-4 text-sm break-all select-all">{{ secret }}</code>
           <UButton
-            label="Скопировать ключ"
+            :label="t('ui.copyKey')"
             icon="i-lucide-copy"
             @click="copySecret"
           />
           <p class="text-sm text-muted">
-            Передавайте его в заголовке Authorization: Bearer &lt;ключ&gt;.
+            {{ t('ui.sendItInTheAuthorizationBearerKeyHeader') }}
           </p>
           <UButton
-            label="Готово"
+            :label="t('ui.done')"
             color="neutral"
             variant="outline"
             @click="open = false"
@@ -346,7 +350,7 @@ function keyStatus(item: APIKeyRecord) {
             color="error"
           />
           <UFormField
-            label="Название"
+            :label="t('ui.name')"
             name="name"
             required
           >
@@ -358,9 +362,9 @@ function keyStatus(item: APIKeyRecord) {
             />
           </UFormField>
           <UFormField
-            label="Действует до"
+            :label="t('ui.expiresAt')"
             name="expires"
-            hint="Необязательно"
+            :hint="t('ui.optional')"
           >
             <UInput
               v-model="key.expires"
@@ -369,7 +373,7 @@ function keyStatus(item: APIKeyRecord) {
             />
           </UFormField>
           <UFormField
-            label="Разрешения"
+            :label="t('ui.permissions')"
             name="permissions"
           >
             <UCheckboxGroup
@@ -378,14 +382,14 @@ function keyStatus(item: APIKeyRecord) {
             />
           </UFormField>
           <UFormField
-            label="Доступные функции"
+            :label="t('ui.availableFunctions')"
             name="function_ids"
           >
             <KeyFunctionSelect v-model="key.function_ids" />
           </UFormField>
           <UButton
             type="submit"
-            label="Создать ключ"
+            :label="t('ui.createKey')"
             :loading="saving"
           />
         </UForm>
@@ -393,8 +397,8 @@ function keyStatus(item: APIKeyRecord) {
     </UModal>
     <UModal
       v-model:open="editing"
-      title="Доступные функции"
-      :description="`API-ключ «${editTarget?.name}»`"
+      :title="t('ui.availableFunctions')"
+      :description="t('ui.apiKey2', { value1: editTarget?.name })"
       :dismissible="!saving"
       :ui="{ content: 'sm:max-w-xl' }"
       scrollable
@@ -413,7 +417,7 @@ function keyStatus(item: APIKeyRecord) {
           <KeyFunctionSelect v-model="editFunctions" />
           <UButton
             type="submit"
-            label="Сохранить функции"
+            :label="t('ui.saveFunctions')"
             :loading="saving"
           />
         </UForm>
@@ -421,19 +425,19 @@ function keyStatus(item: APIKeyRecord) {
     </UModal>
     <UModal
       v-model:open="revokeOpen"
-      title="Отозвать API-ключ?"
-      :description="`Интеграции с ключом «${revokeTarget?.name}» потеряют доступ.`"
+      :title="t('ui.revokeApiKey')"
+      :description="t('ui.integrationsUsingTheKeyWillLoseAccess', { value1: revokeTarget?.name })"
       :dismissible="!saving"
     >
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton
-            label="Отмена"
+            :label="t('ui.cancel')"
             color="neutral"
             variant="ghost"
             @click="revokeTarget = null"
           /><UButton
-            label="Отозвать"
+            :label="t('ui.revoke')"
             color="error"
             :loading="saving"
             @click="revoke"

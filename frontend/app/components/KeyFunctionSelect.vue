@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { FunctionRecord, Page } from '~/types/api'
 
+const { t } = useI18n()
+
 const selected = defineModel<string[]>({ required: true })
 const api = useApi()
 const auth = useAuth()
@@ -17,12 +19,12 @@ const items = computed(() => (data.value?.items || [])
 <template>
   <div class="space-y-3">
     <p class="text-sm text-muted">
-      Выбрано: {{ selected.length }}. Список ограничивает доступ через MCP и REST API. Пустой список не даёт доступа к функциям.
+      {{ t('counts.selection', { count: selected.length }) }}
     </p>
     <UInput
       v-model="search"
-      aria-label="Поиск функций на странице"
-      placeholder="Поиск на странице"
+      :aria-label="t('ui.searchFunctionsOnThisPage')"
+      :placeholder="t('ui.searchThisPage')"
       icon="i-lucide-search"
       class="w-full"
     />
@@ -35,7 +37,7 @@ const items = computed(() => (data.value?.items || [])
       v-else-if="status === 'idle' || status === 'pending'"
       class="text-sm text-muted"
     >
-      Загрузка функций…
+      {{ t('ui.loadingFunctions') }}
     </p>
     <template v-else>
       <UCheckboxGroup
@@ -46,7 +48,7 @@ const items = computed(() => (data.value?.items || [])
         v-if="!items.length"
         class="text-sm text-muted"
       >
-        Нет доступных функций на этой странице.
+        {{ t('ui.noFunctionsAvailableOnThisPage') }}
       </p>
       <UPagination
         v-if="data && data.total > 50"
@@ -57,7 +59,7 @@ const items = computed(() => (data.value?.items || [])
     </template>
     <UButton
       v-if="selected.length"
-      label="Очистить выбор"
+      :label="t('ui.clearSelection')"
       color="neutral"
       variant="ghost"
       size="xs"
@@ -67,7 +69,7 @@ const items = computed(() => (data.value?.items || [])
       v-if="!auth.can('functions.read')"
       class="text-sm text-muted"
     >
-      Для выбора функций нужно разрешение на чтение функций.
+      {{ t('ui.readingFunctionsPermissionIsRequiredToSelectFunctions') }}
     </p>
   </div>
 </template>

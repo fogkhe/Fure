@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { FunctionRecord, Page, RevisionRecord } from '~/types/api'
 
+const { formatDate, errorMessage } = useFormatting()
+const { t } = useI18n()
+
 const props = defineProps<{
   record: FunctionRecord
   revisionId?: string
@@ -28,7 +31,7 @@ watch(() => props.revisionId, async (id) => {
     if (revision.function_id !== props.record.id) throw new Error('Revision belongs to another function')
     selected.value = revision
   } catch (problem) {
-    toast.add({ title: 'Не удалось загрузить версию', description: errorMessage(problem), color: 'error' })
+    toast.add({ title: t('ui.couldNotLoadVersion'), description: errorMessage(problem), color: 'error' })
   }
 }, { immediate: true })
 async function activate() {
@@ -38,9 +41,9 @@ async function activate() {
   try {
     await api(`/functions/${props.record.id}`, { method: 'PATCH', body: { revision_id: selected.value.id } })
     emit('changed')
-    toast.add({ title: 'Текущая версия изменена', color: 'success', icon: 'i-lucide-check' })
+    toast.add({ title: t('ui.currentVersionChanged'), color: 'success', icon: 'i-lucide-check' })
   } catch (problem) {
-    toast.add({ title: 'Не удалось выбрать версию', description: errorMessage(problem), color: 'error' })
+    toast.add({ title: t('ui.couldNotSelectVersion'), description: errorMessage(problem), color: 'error' })
   } finally {
     selecting.value = false
   }
@@ -52,13 +55,13 @@ async function activate() {
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="font-semibold text-highlighted">
-          Версии реализаций
+          {{ t('ui.implementationVersions') }}
         </h2><p class="mt-1 text-sm text-muted">
-          Сохранённый код неизменяем. Для правок создайте новую версию.
+          {{ t('ui.savedCodeIsImmutableCreateANewVersionTo') }}
         </p>
       </div><UButton
         v-if="!record.deleted && auth.can('functions.update')"
-        label="Новая версия"
+        :label="t('ui.newVersion')"
         icon="i-lucide-plus"
         variant="soft"
         @click="emit('create', selected)"
@@ -76,9 +79,9 @@ async function activate() {
     <UEmpty
       v-else-if="!data?.items.length"
       icon="i-lucide-git-branch"
-      title="Пока нет реализаций"
-      description="Добавьте Python-код или Jinja-шаблон, чтобы функция стала готова к запуску."
-      :actions="record.deleted || !auth.can('functions.update') ? [] : [{ label: 'Добавить реализацию', icon: 'i-lucide-plus', onClick: () => emit('create', null) }]"
+      :title="t('ui.noImplementationsYet')"
+      :description="t('ui.addPythonCodeOrAJinjaTemplateToMake')"
+      :actions="record.deleted || !auth.can('functions.update') ? [] : [{ label: t('ui.addImplementation'), icon: 'i-lucide-plus', onClick: () => emit('create', null) }]"
       class="border border-dashed border-default"
     />
     <div
@@ -96,7 +99,7 @@ async function activate() {
           <div class="flex items-center justify-between gap-2">
             <span class="font-mono text-sm font-medium text-highlighted">#{{ shortId(revision.id) }}</span><UBadge
               v-if="revision.id === record.revision_id"
-              label="Текущая"
+              :label="t('ui.current')"
               size="xs"
               variant="subtle"
             /><UIcon
@@ -129,14 +132,14 @@ async function activate() {
             <span class="font-mono text-sm text-highlighted">#{{ shortId(selected.id) }}</span><div class="flex gap-2">
               <UButton
                 v-if="selected.id !== record.revision_id && !record.deleted && auth.can('functions.update')"
-                label="Выбрать текущей"
+                :label="t('ui.setAsCurrent')"
                 icon="i-lucide-check"
                 size="sm"
                 :loading="selecting"
                 @click="activate"
               /><UButton
                 v-if="!record.deleted && auth.can('functions.update')"
-                label="На основе этой"
+                :label="t('ui.useAsAStartingPoint')"
                 icon="i-lucide-copy-plus"
                 color="neutral"
                 variant="outline"
@@ -148,7 +151,7 @@ async function activate() {
         </template>
         <UTabs
           v-model="previewTab"
-          :items="[{ label: 'Код', value: 'source' }, { label: 'Схемы', value: 'schemas' }, { label: 'Настройки', value: 'options' }]"
+          :items="[{ label: t('ui.code'), value: 'source' }, { label: t('ui.schemas'), value: 'schemas' }, { label: t('ui.settings'), value: 'options' }]"
           :content="false"
           size="sm"
           class="mb-4"
@@ -163,16 +166,16 @@ async function activate() {
         >
           <JsonView
             :value="selected.implementation.input_schema"
-            title="Входная схема"
+            :title="t('ui.inputSchema')"
           /><JsonView
             :value="selected.implementation.output_schema"
-            title="Выходная схема"
+            :title="t('ui.outputSchema')"
           />
         </div>
         <JsonView
           v-else
           :value="selected.runner_options"
-          title="Настройки раннера"
+          :title="t('ui.runnerSettings')"
         />
       </UCard>
     </div>

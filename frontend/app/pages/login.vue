@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { SessionRecord } from '~/types/api'
 
-useSeoMeta({ title: 'Вход' })
+const { errorMessage } = useFormatting()
+const { t } = useI18n()
+
+useSeoMeta({ title: () => t('ui.signIn') })
 const auth = useAuth()
 const state = reactive({ username: '', password: '' })
 const saving = ref(false)
@@ -36,10 +39,10 @@ async function login() {
           />
         </div>
         <h1 class="text-2xl font-semibold text-highlighted">
-          Войти в Fure
+          {{ t('ui.signInToFure') }}
         </h1>
         <p class="mt-2 text-sm text-muted">
-          Ваши функции, версии и запуски.
+          {{ t('ui.yourFunctionsVersionsAndRuns') }}
         </p>
       </template>
       <UForm
@@ -54,7 +57,7 @@ async function login() {
           icon="i-lucide-circle-alert"
         />
         <UFormField
-          label="Логин"
+          :label="t('ui.username')"
           name="username"
           required
         >
@@ -68,7 +71,7 @@ async function login() {
           />
         </UFormField>
         <UFormField
-          label="Пароль"
+          :label="t('ui.password')"
           name="password"
           required
         >
@@ -83,7 +86,7 @@ async function login() {
         </UFormField>
         <UButton
           type="submit"
-          label="Войти"
+          :label="t('ui.signIn2')"
           icon="i-lucide-log-in"
           block
           :loading="saving"
@@ -91,7 +94,7 @@ async function login() {
       </UForm>
       <template #footer>
         <p class="text-sm text-muted">
-          Учётную запись создаёт администратор. Для первой настройки используйте команду <code class="text-xs">python -m fure.cli create-admin admin</code>.
+          {{ t('ui.accountsAreCreatedByAnAdministratorForInitialSetup') }} <code class="text-xs">python -m fure.cli create-admin admin</code>.
         </p>
       </template>
     </UCard>

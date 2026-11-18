@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { Page, FunctionRecord, RunRecord, RunStatus } from '~/types/api'
 
+const { formatDate, formatDuration, errorMessage } = useFormatting()
+const { t } = useI18n()
+
 const props = defineProps<{
   functionId?: string
   revisionId?: string
@@ -19,7 +22,7 @@ const cancelOpen = computed({ get: () => !!target.value, set: (open: boolean) =>
 } })
 const names = useState<Record<string, string>>('function-names', () => ({}))
 const loadingNames = new Set<string>()
-const statuses = [{ label: 'Все статусы', value: 'all' }, { label: 'В очереди', value: 'pending' }, { label: 'Выполняются', value: 'running' }, { label: 'Успешные', value: 'succeeded' }, { label: 'Ошибки', value: 'failed' }, { label: 'Отменённые', value: 'cancelled' }]
+const statuses = computed(() => ([{ label: t('ui.allStatuses'), value: 'all' }, { label: t('ui.pending'), value: 'pending' }, { label: t('ui.running'), value: 'running' }, { label: t('ui.succeeded'), value: 'succeeded' }, { label: t('ui.failed'), value: 'failed' }, { label: t('ui.cancelled'), value: 'cancelled' }]))
 const query = computed(() => ({ page: page.value - 1, size: 15, function_id: props.functionId, revision_id: props.revisionId, status: filter.value === 'all' ? undefined : filter.value as RunStatus }))
 const key = computed(() => `runs-${props.functionId || 'all'}-${props.revisionId || 'all'}`)
 const { data, error, status, refresh } = await useAsyncData(key, () => api<Page<RunRecord>>('/runs', { query: query.value }), { server: false, watch: [query] })
@@ -54,35 +57,35 @@ async function cancel() {
     await api(`/runs/${target.value.id}/cancel`, { method: 'POST' })
     target.value = null
     await refresh()
-    toast.add({ title: 'Запуск отменён', color: 'success' })
+    toast.add({ title: t('ui.runCancelled'), color: 'success' })
   } catch (problem) {
-    toast.add({ title: 'Не удалось отменить запуск', description: errorMessage(problem), color: 'error' })
+    toast.add({ title: t('ui.couldNotCancelRun'), description: errorMessage(problem), color: 'error' })
     await refresh()
   } finally {
     cancelling.value = false
   }
 }
-const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: 'function_id', header: 'Функция' }, { accessorKey: 'status', header: 'Статус' }, { accessorKey: 'duration', header: 'Длительность' }, { accessorKey: 'created_at', header: 'Создан' }, { id: 'actions' }]
+const columns = computed(() => ([{ accessorKey: 'id', header: t('ui.run') }, { accessorKey: 'function_id', header: t('ui.function') }, { accessorKey: 'status', header: t('ui.status') }, { accessorKey: 'duration', header: t('ui.duration') }, { accessorKey: 'created_at', header: t('ui.created') }, { id: 'actions' }]))
 </script>
 
 <template>
   <div class="space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <p class="text-sm text-muted">
-        {{ data ? `${data.total} записей` : 'История запусков' }}
+        {{ data ? t('counts.records', data.total) : t('ui.runHistory') }}
       </p><div class="flex flex-wrap items-center gap-3">
         <USwitch
           v-model="autoRefresh"
-          label="Автообновление"
+          :label="t('ui.autoRefresh')"
           size="sm"
         /><USelect
           v-model="filter"
           :items="statuses"
-          aria-label="Статус запуска"
+          :aria-label="t('ui.runStatus')"
           class="w-44"
         /><UButton
           icon="i-lucide-refresh-cw"
-          aria-label="Обновить историю"
+          :aria-label="t('ui.refreshHistory')"
           color="neutral"
           variant="outline"
           :loading="status === 'idle' || status === 'pending'"
@@ -99,7 +102,7 @@ const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: '
       :data="data?.items || []"
       :columns="columns"
       :loading="(status === 'idle' || status === 'pending') && !data"
-      empty="Запусков пока нет"
+      :empty="t('ui.noRunsYet')"
       class="rounded-xl border border-default"
     >
       <template #id-cell="{ row }">
@@ -133,7 +136,7 @@ const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: '
           <UButton
             v-if="['pending', 'running'].includes(row.original.status) && auth.canCancel(row.original)"
             icon="i-lucide-square"
-            aria-label="Отменить запуск"
+            :aria-label="t('ui.cancelRun')"
             color="error"
             variant="ghost"
             size="xs"
@@ -141,7 +144,7 @@ const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: '
           /><UButton
             :to="`/runs/${row.original.id}`"
             icon="i-lucide-arrow-up-right"
-            aria-label="Открыть запуск"
+            :aria-label="t('ui.openRun')"
             color="neutral"
             variant="ghost"
             size="xs"
@@ -158,20 +161,20 @@ const columns = [{ accessorKey: 'id', header: 'Запуск' }, { accessorKey: '
     />
     <UModal
       v-model:open="cancelOpen"
-      title="Отменить запуск?"
-      description="Выполнение будет прервано. Входные данные и запись в истории сохранятся."
+      :title="t('ui.cancelRun2')"
+      :description="t('ui.executionWillBeInterruptedInputDataAndTheHistory')"
       :dismissible="!cancelling"
     >
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton
-            label="Назад"
+            :label="t('ui.back')"
             color="neutral"
             variant="ghost"
             :disabled="cancelling"
             @click="target = null"
           /><UButton
-            label="Отменить запуск"
+            :label="t('ui.cancelRun')"
             color="error"
             :loading="cancelling"
             @click="cancel"

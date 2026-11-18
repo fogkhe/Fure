@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const props = defineProps<{
   value: unknown
   title?: string
@@ -9,9 +10,9 @@ const content = computed(() => props.value === undefined ? '—' : props.text &&
 async function copy() {
   try {
     await navigator.clipboard.writeText(content.value)
-    toast.add({ title: 'Скопировано', icon: 'i-lucide-check', color: 'success' })
+    toast.add({ title: t('ui.copied'), icon: 'i-lucide-check', color: 'success' })
   } catch {
-    toast.add({ title: 'Не удалось скопировать', description: 'Выделите и скопируйте текст вручную.', color: 'error' })
+    toast.add({ title: t('ui.couldNotCopy'), description: t('ui.selectAndCopyTheTextManually'), color: 'error' })
   }
 }
 </script>
@@ -25,7 +26,7 @@ async function copy() {
         color="neutral"
         variant="ghost"
         size="xs"
-        aria-label="Скопировать"
+        :aria-label="t('ui.copy')"
         @click="copy"
       />
     </div>

@@ -2,6 +2,9 @@
 import type { FormError } from '@nuxt/ui'
 import type { RevisionRecord } from '~/types/api'
 
+const { errorMessage } = useFormatting()
+const { t } = useI18n()
+
 const props = defineProps<{
   functionId: string
   initial?: RevisionRecord | null
@@ -37,7 +40,7 @@ watch(open, (value) => {
   const initial = props.initial
   state.kind = initial?.implementation.type || 'python'
   state.code = initial?.implementation.type === 'python' ? initial.implementation.code : pythonExample
-  state.template = initial?.implementation.type === 'jinja' ? initial.implementation.template : 'Поприветствуй {{ name }} кратко и дружелюбно.'
+  state.template = initial?.implementation.type === 'jinja' ? initial.implementation.template : t('ui.greetNameBrieflyAndWarmly')
   state.outputSchema = initial ? JSON.stringify(initial.implementation.output_schema, null, 2) : '{}'
   state.timeout = initial ? initial.runner_options.timeout == null ? '' : String(initial.runner_options.timeout) : '30'
   state.baseUrl = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.base_url : 'https://api.openai.com/v1'
@@ -54,22 +57,22 @@ function validate(): FormError[] {
     return []
   const errors: FormError[] = []
   if (state.timeout !== '' && (!Number.isFinite(Number(state.timeout)) || Number(state.timeout) < 0))
-    errors.push({ name: 'timeout', message: 'Введите число не меньше нуля или оставьте поле пустым.' })
+    errors.push({ name: 'timeout', message: t('ui.enterANumberGreaterThanOrEqualToZero') })
   if (state.kind === 'python' && !state.code.trim())
-    errors.push({ name: 'code', message: 'Добавьте код функции.' })
+    errors.push({ name: 'code', message: t('ui.addTheFunctionCode') })
   if (state.kind === 'jinja') {
     if (!state.model.trim())
-      errors.push({ name: 'model', message: 'Укажите модель.' })
+      errors.push({ name: 'model', message: t('ui.specifyAModel') })
     try {
       if (!['http:', 'https:'].includes(new URL(state.baseUrl).protocol))
         throw new Error()
     } catch {
-      errors.push({ name: 'baseUrl', message: 'Укажите HTTP или HTTPS адрес.' })
+      errors.push({ name: 'baseUrl', message: t('ui.enterAnHttpOrHttpsUrl') })
     }
     try {
       parseObject(state.outputSchema)
     } catch (problem) {
-      errors.push({ name: 'outputSchema', message: problem instanceof Error ? problem.message : 'Некорректный JSON.' })
+      errors.push({ name: 'outputSchema', message: errorMessage(problem) })
     }
   }
   return errors
@@ -104,8 +107,8 @@ async function save() {
 <template>
   <UModal
     v-model:open="open"
-    title="Новая версия реализации"
-    description="Каждая версия сохраняет код и настройки запуска. История предыдущих версий останется доступна."
+    :title="t('ui.newImplementationVersion')"
+    :description="t('ui.eachVersionStoresTheCodeAndExecutionSettingsPrevious')"
     :ui="{ content: 'sm:max-w-3xl' }"
     :dismissible="!saving"
     scrollable
@@ -119,13 +122,13 @@ async function save() {
       >
         <UAlert
           v-if="error"
-          title="Не удалось завершить сохранение"
-          :description="created ? `Версия уже создана. Повторите её выбор или снимите флажок «Сделать текущей». ${error}` : error"
+          :title="t('ui.couldNotFinishSaving')"
+          :description="created ? t('ui.theVersionHasAlreadyBeenCreatedTrySelectingIt', { value1: error }) : error"
           color="error"
           icon="i-lucide-circle-alert"
         />
         <UFormField
-          label="Реализация"
+          :label="t('ui.implementation')"
           name="kind"
         >
           <USelect
@@ -137,10 +140,10 @@ async function save() {
         </UFormField>
         <UFormField
           v-if="state.kind === 'python'"
-          label="Код функции"
+          :label="t('ui.functionCode')"
           name="code"
           required
-          description="Асинхронная function(input: Input) с аннотациями аргумента и результата. Input — модель Pydantic или None."
+          :description="t('ui.anAsyncFunctionInputInputWithArgumentAndReturn')"
         >
           <UTextarea
             v-model="state.code"
@@ -149,14 +152,14 @@ async function save() {
             :disabled="saving || !!created"
             class="w-full"
             :ui="{ base: 'font-mono text-sm leading-6' }"
-            aria-label="Python-код"
+            :aria-label="t('ui.pythonCode')"
           />
         </UFormField>
         <template v-else>
           <UFormField
-            label="Jinja-шаблон"
+            :label="t('ui.jinjaTemplate')"
             name="template"
-            description="Переменные шаблона автоматически образуют входную схему."
+            :description="t('ui.templateVariablesAutomaticallyDefineTheInputSchema')"
           >
             <UTextarea
               v-model="state.template"
@@ -165,12 +168,12 @@ async function save() {
               :disabled="saving || !!created"
               class="w-full"
               :ui="{ base: 'font-mono text-sm' }"
-              aria-label="Jinja-шаблон"
+              :aria-label="t('ui.jinjaTemplate')"
             />
           </UFormField>
           <div class="grid gap-4 sm:grid-cols-2">
             <UFormField
-              label="Адрес API"
+              :label="t('ui.apiUrl')"
               name="baseUrl"
               required
             >
@@ -182,23 +185,23 @@ async function save() {
               />
             </UFormField>
             <UFormField
-              label="Модель"
+              :label="t('ui.model')"
               name="model"
               required
             >
               <UInput
                 v-model="state.model"
-                placeholder="Название модели"
+                :placeholder="t('ui.modelName')"
                 :disabled="saving || !!created"
                 class="w-full"
               />
             </UFormField>
           </div>
           <UFormField
-            label="API ключ"
+            :label="t('ui.apiKey')"
             name="apiKey"
-            hint="Необязательно"
-            :description="initial?.runner_options.type === 'openai_jinja' ? 'Сохранённый ключ не возвращается API. Для новой версии введите его снова, если он необходим.' : 'Для локального сервера без авторизации оставьте поле пустым.'"
+            :hint="t('ui.optional')"
+            :description="initial?.runner_options.type === 'openai_jinja' ? t('ui.theApiDoesNotReturnStoredKeysEnterThe') : t('ui.leaveEmptyForALocalServerWithoutAuthentication')"
           >
             <UInput
               v-model="state.apiKey"
@@ -209,9 +212,9 @@ async function save() {
             />
           </UFormField>
           <UFormField
-            label="Выходная схема"
+            :label="t('ui.outputSchema')"
             name="outputSchema"
-            description="{} — текстовый ответ. Непустая схема задаёт формат JSON-результата."
+            :description="t('ui.returnsATextResponseANonEmptySchemaDefines')"
           >
             <UTextarea
               v-model="state.outputSchema"
@@ -225,14 +228,14 @@ async function save() {
           <USwitch
             v-model="state.structuredOutputs"
             label="Structured Outputs"
-            description="Выключите, если провайдер не поддерживает этот режим. JSON будет извлекаться из текста и проверяться по схеме."
+            :description="t('ui.disableIfYourProviderDoesNotSupportThisMode')"
             :disabled="saving || !!created"
           />
           <UFormField
             v-if="!state.structuredOutputs"
-            label="Окончания тегов размышления"
+            :label="t('ui.reasoningEndTags')"
             name="reasoningEndTags"
-            description="По одному на строке, например </think>. Пустой список отключает удаление размышлений."
+            :description="t('ui.onePerLineForExampleThinkAnEmptyList')"
           >
             <UTextarea
               v-model="state.reasoningEndTags"
@@ -244,9 +247,9 @@ async function save() {
           </UFormField>
         </template>
         <UFormField
-          label="Таймаут, секунды"
+          :label="t('ui.timeoutSeconds')"
           name="timeout"
-          description="Пустое поле — без ограничения времени."
+          :description="t('ui.leaveEmptyForNoTimeLimit')"
         >
           <UInput
             v-model="state.timeout"
@@ -260,20 +263,20 @@ async function save() {
         <USeparator />
         <UCheckbox
           v-model="state.activate"
-          label="Сделать текущей версией"
-          description="Новые запуски функции будут использовать эту реализацию."
+          :label="t('ui.setAsCurrentVersion')"
+          :description="t('ui.newRunsWillUseThisImplementation')"
           :disabled="saving"
         />
         <div class="flex justify-end gap-2">
           <UButton
-            label="Закрыть"
+            :label="t('ui.close')"
             color="neutral"
             variant="ghost"
             :disabled="saving"
             @click="open = false"
           /><UButton
             type="submit"
-            :label="created ? state.activate ? 'Выбрать текущей' : 'Готово' : 'Сохранить версию'"
+            :label="created ? state.activate ? t('ui.setAsCurrent') : t('ui.done') : t('ui.saveVersion')"
             icon="i-lucide-git-branch"
             :loading="saving"
           />

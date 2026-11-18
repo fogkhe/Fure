@@ -2,6 +2,9 @@
 import type { FormError } from '@nuxt/ui'
 import type { FunctionRecord } from '~/types/api'
 
+const { errorMessage } = useFormatting()
+const { t } = useI18n()
+
 const props = defineProps<{
   record: FunctionRecord
 }>()
@@ -29,9 +32,9 @@ watch(() => props.record, (value) => {
 function validate(): FormError[] {
   const errors: FormError[] = []
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(state.name))
-    errors.push({ name: 'name', message: 'От 1 до 64 латинских букв, цифр, дефисов или подчёркиваний.' })
+    errors.push({ name: 'name', message: t('ui.use164LatinLettersDigitsHyphensOrUnderscores') })
   if (state.description.length > 1000)
-    errors.push({ name: 'description', message: 'Максимум 1000 символов.' })
+    errors.push({ name: 'description', message: t('ui.maximum1000Characters') })
   return errors
 }
 async function save() {
@@ -41,7 +44,7 @@ async function save() {
     const updated = await api<FunctionRecord>(`/functions/${props.record.id}`, { method: 'PATCH', body: { name: state.name, description: state.description || null, enabled: state.enabled, ...(state.public !== props.record.public ? { public: state.public } : {}) } })
     reset(updated)
     emit('changed')
-    toast.add({ title: 'Настройки сохранены', icon: 'i-lucide-check', color: 'success' })
+    toast.add({ title: t('ui.settingsSaved'), icon: 'i-lucide-check', color: 'success' })
   } catch (problem) {
     error.value = errorMessage(problem)
   } finally {
@@ -58,7 +61,7 @@ async function changeDeletion(restore = false) {
       await api(`/functions/${props.record.id}`, { method: 'DELETE' })
     deleting.value = false
     emit('changed')
-    toast.add({ title: restore ? 'Функция восстановлена' : 'Функция удалена', color: 'success' })
+    toast.add({ title: restore ? t('ui.functionRestored') : t('ui.functionDeleted'), color: 'success' })
   } catch (problem) {
     error.value = errorMessage(problem)
   } finally {
@@ -77,16 +80,16 @@ async function changeDeletion(restore = false) {
     />
     <UAlert
       v-if="record.deleted"
-      title="Функция удалена"
-      description="Версии и история сохранены. Восстановите функцию, чтобы редактировать и запускать её."
+      :title="t('ui.functionDeleted')"
+      :description="t('ui.versionsAndHistoryArePreservedRestoreTheFunctionTo')"
       color="warning"
       icon="i-lucide-archive"
-      :actions="auth.can('functions.delete') ? [{ label: 'Восстановить', onClick: () => changeDeletion(true), loading: saving }] : []"
+      :actions="auth.can('functions.delete') ? [{ label: t('ui.restore'), onClick: () => changeDeletion(true), loading: saving }] : []"
     />
     <UCard>
       <template #header>
         <h2 class="font-semibold text-highlighted">
-          Основные настройки
+          {{ t('ui.generalSettings') }}
         </h2>
       </template>
       <UForm
@@ -97,10 +100,10 @@ async function changeDeletion(restore = false) {
         @submit="save"
       >
         <UFormField
-          label="Имя функции"
+          :label="t('ui.functionName')"
           name="name"
           required
-          description="При переименовании изменится адрес запуска по имени."
+          :description="t('ui.renamingChangesTheNameBasedExecutionUrl')"
         >
           <UInput
             v-model="state.name"
@@ -108,7 +111,7 @@ async function changeDeletion(restore = false) {
           />
         </UFormField>
         <UFormField
-          label="Описание"
+          :label="t('ui.description')"
           name="description"
         >
           <UTextarea
@@ -119,13 +122,13 @@ async function changeDeletion(restore = false) {
         </UFormField>
         <USwitch
           v-model="state.enabled"
-          label="Функция включена"
-          description="Выключенная функция сохраняет версии и историю, но не принимает новые запуски."
+          :label="t('ui.functionEnabled')"
+          :description="t('ui.aDisabledFunctionKeepsItsVersionsAndHistoryBut')"
         />
         <USwitch
           v-model="state.public"
-          label="Публичный запуск"
-          description="Любой, кто знает имя функции, сможет вызвать её без API-ключа. Исходники и история остаются закрытыми."
+          :label="t('ui.publicExecution')"
+          :description="t('ui.anyoneWhoKnowsTheFunctionNameCanRunIt')"
           :disabled="!auth.can('functions.publish') || !auth.can('functions.update') || record.deleted || saving"
         />
         <p
@@ -136,7 +139,7 @@ async function changeDeletion(restore = false) {
         </p>
         <UButton
           type="submit"
-          label="Сохранить изменения"
+          :label="t('ui.saveChanges')"
           icon="i-lucide-check"
           :disabled="!dirty || record.deleted || !auth.can('functions.update')"
           :loading="saving"
@@ -147,12 +150,12 @@ async function changeDeletion(restore = false) {
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 class="font-medium text-highlighted">
-            Удаление функции
+            {{ t('ui.deleteFunction') }}
           </h3><p class="mt-1 text-sm text-muted">
-            История и версии останутся доступны.
+            {{ t('ui.historyAndVersionsWillRemainAvailable') }}
           </p>
         </div><UButton
-          label="Удалить функцию"
+          :label="t('ui.deleteFunction2')"
           icon="i-lucide-trash-2"
           color="error"
           variant="soft"
@@ -162,20 +165,20 @@ async function changeDeletion(restore = false) {
     </UCard>
     <UModal
       v-model:open="deleting"
-      title="Удалить функцию?"
-      :description="`Функция «${record.name}» перестанет принимать запуски. Её можно восстановить из списка удалённых.`"
+      :title="t('ui.deleteFunction3')"
+      :description="t('ui.theFunctionWillStopAcceptingRunsYouCanRestore', { value1: record.name })"
       :dismissible="!saving"
     >
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton
-            label="Отмена"
+            :label="t('ui.cancel')"
             color="neutral"
             variant="ghost"
             :disabled="saving"
             @click="deleting = false"
           /><UButton
-            label="Удалить"
+            :label="t('ui.delete')"
             color="error"
             :loading="saving"
             @click="changeDeletion()"

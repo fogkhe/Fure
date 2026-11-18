@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type { Page, RoleRecord } from '~/types/api'
 
-useSeoMeta({ title: 'Роли' })
+const { permissionLabel, permissionItems } = usePermissions()
+const { errorMessage } = useFormatting()
+const { t } = useI18n()
+
+useSeoMeta({ title: () => t('ui.roles') })
 const api = useApi()
 const auth = useAuth()
 const page = ref(1)
@@ -65,14 +69,14 @@ watch(target, () => {
     <div class="flex flex-wrap items-end justify-between gap-4">
       <div>
         <p class="mb-3 text-sm font-medium text-primary">
-          Управление доступом
+          {{ t('ui.accessManagement') }}
         </p><h1 class="text-3xl font-semibold text-highlighted">
-          Роли
+          {{ t('ui.roles') }}
         </h1><p class="mt-3 text-muted">
-          Наборы разрешений для вашей команды.
+          {{ t('ui.permissionSetsForYourTeam') }}
         </p>
       </div><UButton
-        label="Новая роль"
+        :label="t('ui.newRole')"
         icon="i-lucide-plus"
         @click="edit(null)"
       />
@@ -85,14 +89,14 @@ watch(target, () => {
     <UTable
       :data="data?.items || []"
       :loading="status === 'idle' || status === 'pending'"
-      :columns="[{ accessorKey: 'name', header: 'Название' }, { id: 'permissions', header: 'Разрешения' }, { id: 'actions' }]"
-      empty="Ролей пока нет"
+      :columns="[{ accessorKey: 'name', header: t('ui.name') }, { id: 'permissions', header: t('ui.permissions') }, { id: 'actions' }]"
+      :empty="t('ui.noRolesYet')"
       class="rounded-xl border border-default"
     >
       <template #name-cell="{ row }">
         <span class="font-medium text-highlighted">{{ row.original.name }}</span><UBadge
           v-if="row.original.protected"
-          label="Системная"
+          :label="t('ui.system')"
           color="neutral"
           variant="subtle"
           size="xs"
@@ -104,7 +108,7 @@ watch(target, () => {
           <UBadge
             v-for="permission in row.original.permissions"
             :key="permission"
-            :label="permissionLabels[permission] || permission"
+            :label="permissionLabel(permission)"
             color="neutral"
             variant="subtle"
             size="xs"
@@ -118,13 +122,13 @@ watch(target, () => {
         >
           <UButton
             icon="i-lucide-pencil"
-            :aria-label="`Изменить роль ${row.original.name}`"
+            :aria-label="t('ui.editRole', { value1: row.original.name })"
             color="neutral"
             variant="ghost"
             @click="edit(row.original)"
           /><UButton
             icon="i-lucide-trash-2"
-            :aria-label="`Удалить роль ${row.original.name}`"
+            :aria-label="t('ui.deleteRole', { value1: row.original.name })"
             color="error"
             variant="ghost"
             @click="target = row.original"
@@ -141,8 +145,8 @@ watch(target, () => {
     />
     <UModal
       v-model:open="open"
-      :title="selected ? `Роль ${selected.name}` : 'Новая роль'"
-      description="Изменения сразу применяются к пользователям и их API-ключам."
+      :title="selected ? t('ui.role', { value1: selected.name }) : t('ui.newRole')"
+      :description="t('ui.changesApplyImmediatelyToUsersAndTheirApiKeys')"
       :dismissible="!saving"
       scrollable
       :ui="{ content: 'sm:max-w-xl' }"
@@ -159,7 +163,7 @@ watch(target, () => {
             color="error"
           />
           <UFormField
-            label="Название роли"
+            :label="t('ui.roleName')"
             name="name"
             required
           >
@@ -176,7 +180,7 @@ watch(target, () => {
             @retry="refreshPermissions()"
           />
           <UFormField
-            label="Разрешения"
+            :label="t('ui.permissions')"
             name="permissions"
           >
             <UCheckboxGroup
@@ -186,7 +190,7 @@ watch(target, () => {
           </UFormField>
           <UButton
             type="submit"
-            :label="selected ? 'Сохранить роль' : 'Создать роль'"
+            :label="selected ? t('ui.saveRole') : t('ui.createRole')"
             :loading="saving"
             :disabled="!!permissionsError"
           />
@@ -195,8 +199,8 @@ watch(target, () => {
     </UModal>
     <UModal
       v-model:open="deleting"
-      title="Удалить роль?"
-      :description="`Роль «${target?.name}» можно удалить, если она не назначена пользователям.`"
+      :title="t('ui.deleteRole2')"
+      :description="t('ui.theRoleCanBeDeletedIfItIsNot', { value1: target?.name })"
       :dismissible="!saving"
     >
       <template #body>
@@ -208,18 +212,18 @@ watch(target, () => {
           v-else
           class="text-sm text-muted"
         >
-          Удалённую роль нельзя восстановить.
+          {{ t('ui.aDeletedRoleCannotBeRestored') }}
         </p>
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton
-            label="Отмена"
+            :label="t('ui.cancel')"
             color="neutral"
             variant="ghost"
             @click="target = null"
           /><UButton
-            label="Удалить роль"
+            :label="t('ui.deleteRole3')"
             color="error"
             :loading="saving"
             @click="remove"

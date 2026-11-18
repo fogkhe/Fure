@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { errorMessage } = useFormatting()
+const { t } = useI18n()
 defineProps<{
   error: unknown
 }>()
@@ -9,11 +11,11 @@ defineEmits<{
 
 <template>
   <UAlert
-    title="Не удалось загрузить данные"
+    :title="t('ui.couldNotLoadData')"
     :description="errorMessage(error)"
     color="error"
     variant="subtle"
     icon="i-lucide-wifi-off"
-    :actions="[{ label: 'Повторить', color: 'error', variant: 'outline', onClick: () => $emit('retry') }]"
+    :actions="[{ label: t('ui.retry'), color: 'error', variant: 'outline', onClick: () => $emit('retry') }]"
   />
 </template>

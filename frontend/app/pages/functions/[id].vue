@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { FunctionRecord, RevisionRecord } from '~/types/api'
 
+const { t } = useI18n()
+
 const route = useRoute()
 const router = useRouter()
 const api = useApi()
@@ -8,17 +10,17 @@ const auth = useAuth()
 const toast = useToast()
 const id = String(route.params.id)
 const { data: record, error, status, refresh } = await useAsyncData(`function-${id}`, () => api<FunctionRecord>(`/functions/${encodeURIComponent(id)}`), { server: false })
-useSeoMeta({ title: () => record.value?.name || 'Функция' })
+useSeoMeta({ title: () => record.value?.name || t('ui.function') })
 const names = useState<Record<string, string>>('function-names', () => ({}))
 watch(record, (value) => {
   if (value)
     names.value[value.id] = value.name
 })
 const tabs = computed(() => [
-  ...(auth.can('functions.run') || record.value?.public ? [{ label: 'Запустить', value: 'run', icon: 'i-lucide-play' }] : []),
-  { label: 'Версии', value: 'revisions', icon: 'i-lucide-git-branch' },
-  ...(auth.can('runs.read') ? [{ label: 'История', value: 'history', icon: 'i-lucide-history' }] : []),
-  ...(auth.can('functions.update') || auth.can('functions.delete') ? [{ label: 'Настройки', value: 'settings', icon: 'i-lucide-settings-2' }] : [])
+  ...(auth.can('functions.run') || record.value?.public ? [{ label: t('ui.run2'), value: 'run', icon: 'i-lucide-play' }] : []),
+  { label: t('ui.versions'), value: 'revisions', icon: 'i-lucide-git-branch' },
+  ...(auth.can('runs.read') ? [{ label: t('ui.history'), value: 'history', icon: 'i-lucide-history' }] : []),
+  ...(auth.can('functions.update') || auth.can('functions.delete') ? [{ label: t('ui.settings'), value: 'settings', icon: 'i-lucide-settings-2' }] : [])
 ])
 const tab = computed({ get: () => tabs.value.some(item => item.value === route.query.tab) ? String(route.query.tab) : tabs.value[0]!.value, set: (value: string) => {
   router.replace({ query: { ...route.query, tab: value } })
@@ -39,7 +41,7 @@ watch(record, (value) => {
 async function saved() {
   await refresh()
   revisionKey.value++
-  toast.add({ title: 'Версия сохранена', color: 'success', icon: 'i-lucide-check' })
+  toast.add({ title: t('ui.versionSaved'), color: 'success', icon: 'i-lucide-check' })
 }
 const functionStatus = computed(() => record.value?.deleted ? 'deleted' : !record.value?.enabled ? 'disabled' : record.value?.runnable ? 'ready' : 'draft')
 </script>
@@ -47,7 +49,7 @@ const functionStatus = computed(() => record.value?.deleted ? 'deleted' : !recor
 <template>
   <UContainer class="py-8 sm:py-12">
     <UBreadcrumb
-      :items="[{ label: 'Функции', to: '/' }, { label: record?.name || 'Функция' }]"
+      :items="[{ label: t('ui.functions'), to: '/' }, { label: record?.name || t('ui.function') }]"
       class="mb-7"
     />
     <PageError
@@ -63,7 +65,7 @@ const functionStatus = computed(() => record.value?.deleted ? 'deleted' : !recor
               {{ record.name }}
             </h1><StatusBadge :status="functionStatus" />
           </div><p class="mt-3 max-w-2xl text-muted">
-            {{ record.description || 'Функция без описания' }}
+            {{ record.description || t('ui.functionWithoutADescription') }}
           </p><p class="mt-3 font-mono text-xs text-dimmed">
             {{ record.id }}
           </p>

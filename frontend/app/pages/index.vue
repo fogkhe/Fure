@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { FunctionRecord, Page } from '~/types/api'
 
-useSeoMeta({ title: 'Функции' })
+const { formatDate } = useFormatting()
+const { t } = useI18n()
+
+useSeoMeta({ title: () => t('ui.functions') })
 const api = useApi()
 const auth = useAuth()
 const page = ref(1)
@@ -9,12 +12,12 @@ const name = ref('')
 const search = ref('')
 const filter = ref('all')
 const creating = ref(false)
-const filters = [
-  { label: 'Все функции', value: 'all' },
-  { label: 'Включённые', value: 'enabled' },
-  { label: 'Выключенные', value: 'disabled' },
-  { label: 'Удалённые', value: 'deleted' }
-]
+const filters = computed(() => ([
+  { label: t('ui.allFunctions'), value: 'all' },
+  { label: t('ui.enabled'), value: 'enabled' },
+  { label: t('ui.disabled2'), value: 'disabled' },
+  { label: t('ui.deleted2'), value: 'deleted' }
+]))
 const query = computed(() => ({ page: page.value - 1, size: 12, name: name.value || undefined, deleted: filter.value === 'deleted', enabled: filter.value === 'enabled' ? true : filter.value === 'disabled' ? false : undefined }))
 const { data, status, error, refresh } = await useAsyncData('functions', () => api<Page<FunctionRecord>>('/functions', { query: query.value }), { server: false, watch: [query] })
 const { data: overview, refresh: refreshOverview } = await useAsyncData('overview', async () => {
@@ -41,16 +44,16 @@ function state(record: FunctionRecord) {
     <div class="mb-9 flex flex-wrap items-end justify-between gap-5">
       <div>
         <p class="mb-3 text-xs font-semibold tracking-widest text-primary uppercase">
-          Ваше рабочее пространство
+          {{ t('ui.yourWorkspace') }}
         </p><h1 class="text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
-          Логика — в функциях.
+          {{ t('ui.logicLivesInFunctions') }}
         </h1><p class="mt-3 max-w-xl text-muted">
-          Создавайте реализации, управляйте версиями и превращайте код в готовый API.
+          {{ t('ui.createImplementationsManageVersionsAndTurnCodeIntoA') }}
         </p>
       </div>
       <UButton
         v-if="auth.can('functions.create')"
-        label="Новая функция"
+        :label="t('ui.newFunction')"
         icon="i-lucide-plus"
         size="lg"
         @click="creating = true"
@@ -58,7 +61,7 @@ function state(record: FunctionRecord) {
     </div>
     <div class="mb-9 grid gap-4 sm:grid-cols-3">
       <div
-        v-for="item in [{ label: 'Функции', value: overview?.functions, icon: 'i-lucide-square-function' }, { label: 'Версии реализаций', value: overview?.revisions, icon: 'i-lucide-git-branch' }, { label: 'Запуски', value: overview?.runs, icon: 'i-lucide-activity' }]"
+        v-for="item in [{ label: t('ui.functions'), value: overview?.functions, icon: 'i-lucide-square-function' }, { label: t('ui.implementationVersions'), value: overview?.revisions, icon: 'i-lucide-git-branch' }, { label: t('ui.runs'), value: overview?.runs, icon: 'i-lucide-activity' }]"
         :key="item.label"
         class="flex items-center justify-between rounded-xl border border-default bg-elevated/25 p-5"
       >
@@ -77,7 +80,7 @@ function state(record: FunctionRecord) {
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-2">
         <h2 class="font-semibold text-highlighted">
-          Библиотека функций
+          {{ t('ui.functionLibrary') }}
         </h2><UBadge
           v-if="data"
           :label="String(data.total)"
@@ -94,29 +97,29 @@ function state(record: FunctionRecord) {
           <UInput
             v-model="search"
             icon="i-lucide-search"
-            placeholder="Точное имя функции"
-            aria-label="Поиск по имени"
+            :placeholder="t('ui.exactFunctionName')"
+            :aria-label="t('ui.searchByName')"
             class="w-full sm:w-56"
           /><UButton
             type="submit"
             icon="i-lucide-arrow-right"
             color="neutral"
             variant="outline"
-            aria-label="Найти"
+            :aria-label="t('ui.search')"
           />
         </form>
         <USelect
           v-model="filter"
           :items="filters"
           class="w-44"
-          aria-label="Статус функций"
+          :aria-label="t('ui.functionStatus')"
         />
-        <UTooltip text="Обновить">
+        <UTooltip :text="t('ui.refresh')">
           <UButton
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="outline"
-            aria-label="Обновить список"
+            :aria-label="t('ui.refreshList')"
             :loading="status === 'idle' || status === 'pending'"
             @click="reload"
           />
@@ -165,10 +168,10 @@ function state(record: FunctionRecord) {
             class="size-4 shrink-0 text-dimmed"
           /></h3>
           <p class="mt-2 min-h-10 line-clamp-2 text-sm leading-5 text-muted">
-            {{ record.description || 'Описание пока не добавлено.' }}
+            {{ record.description || t('ui.noDescriptionYet') }}
           </p>
           <div class="mt-5 flex items-center justify-between gap-2 border-t border-default pt-3 text-xs text-dimmed">
-            <span>{{ formatDate(record.updated_at) }}</span><span class="font-mono">{{ record.revision_id ? `#${shortId(record.revision_id)}` : 'Нет версии' }}</span>
+            <span>{{ formatDate(record.updated_at) }}</span><span class="font-mono">{{ record.revision_id ? `#${shortId(record.revision_id)}` : t('ui.noVersion') }}</span>
           </div>
         </UCard>
       </NuxtLink>
@@ -176,9 +179,9 @@ function state(record: FunctionRecord) {
     <UEmpty
       v-else
       icon="i-lucide-square-function"
-      :title="name || filter !== 'all' ? 'Функции не найдены' : 'Здесь начинается ваша первая функция'"
-      :description="name || filter !== 'all' ? 'Измените фильтры или проверьте точное имя функции.' : 'Добавьте Python-код или Jinja-шаблон, создайте версию и выполните первый запуск.'"
-      :actions="auth.can('functions.create') ? [{ label: 'Новая функция', icon: 'i-lucide-plus', onClick: () => creating = true }] : []"
+      :title="name || filter !== 'all' ? t('ui.noFunctionsFound') : t('ui.yourFirstFunctionStartsHere')"
+      :description="name || filter !== 'all' ? t('ui.changeTheFiltersOrCheckTheExactFunctionName') : t('ui.addPythonCodeOrAJinjaTemplateCreateA')"
+      :actions="auth.can('functions.create') ? [{ label: t('ui.newFunction'), icon: 'i-lucide-plus', onClick: () => creating = true }] : []"
       class="min-h-72 border border-dashed border-default"
     />
     <div

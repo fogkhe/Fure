@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 502,
       statusMessage: 'Backend unavailable',
-      data: { detail: 'Не удалось подключиться к Fure API. Проверьте, что бэкенд запущен.' }
+      data: { detail: 'Could not connect to Fure API. Check that the backend is running.' }
     })
   }
 })
