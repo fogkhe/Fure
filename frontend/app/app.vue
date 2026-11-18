@@ -51,13 +51,6 @@ onUnmounted(() => clearInterval(timer))
         >
           <AppLogo />
         </NuxtLink>
-        <UBadge
-          label="workspace"
-          color="neutral"
-          variant="subtle"
-          size="xs"
-          class="hidden sm:inline-flex"
-        />
       </template>
       <UNavigationMenu :items="items" />
       <template #right>
