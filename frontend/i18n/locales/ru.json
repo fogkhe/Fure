@@ -372,5 +372,19 @@
     "tokens": "{count} токен | {count} токена | {count} токенов",
     "permissions": "{count} разрешение | {count} разрешения | {count} разрешений",
     "selection": "Выбрано: {count}. Список ограничивает доступ через MCP и REST API. Пустой список не даёт доступа к функциям."
+  },
+  "inputEditor": {
+    "fields": "Поля",
+    "editor": "Редактор входных данных",
+    "include": "Включить в запрос",
+    "includeField": "Включить {name} в запрос",
+    "null": "Отправить null",
+    "nullField": "Отправить null для {name}",
+    "remove": "Удалить",
+    "removeItem": "Удалить {name}",
+    "addItem": "Добавить элемент",
+    "setValue": "Задать значение",
+    "jsonFallback": "Редактируйте это значение как JSON. Остальные поля сохраняются.",
+    "invalidJson": "Введите корректный JSON с конечными числами."
   }
 }

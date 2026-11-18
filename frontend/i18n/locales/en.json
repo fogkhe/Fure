@@ -372,5 +372,19 @@
     "tokens": "{count} token | {count} tokens",
     "permissions": "{count} permission | {count} permissions",
     "selection": "Selected: {count}. This list restricts access through MCP and REST API. An empty list grants no access to functions."
+  },
+  "inputEditor": {
+    "fields": "Fields",
+    "editor": "Input editor",
+    "include": "Include in request",
+    "includeField": "Include {name} in request",
+    "null": "Send null",
+    "nullField": "Send null for {name}",
+    "remove": "Remove",
+    "removeItem": "Remove {name}",
+    "addItem": "Add item",
+    "setValue": "Set value",
+    "jsonFallback": "Edit this value as JSON. Other fields are preserved.",
+    "invalidJson": "Enter valid JSON with finite numbers."
   }
 }

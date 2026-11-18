@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { FunctionRecord, JsonObject, RunRecord, RunResult } from '~/types/api'
+import type { FunctionRecord, JsonObject, JsonValue, RunRecord, RunResult } from '~/types/api'
+import { inputSchema, isJsonObject, parseInputJson } from '~/utils/inputSchema'
 
 const { formatDuration, errorMessage, translateDetail } = useFormatting()
 const { t } = useI18n()
@@ -12,6 +13,37 @@ const auth = useAuth()
 const toast = useToast()
 const initialInput = ref(JSON.stringify(sampleInput(props.record.input_schema), null, 2))
 const input = ref(initialInput.value)
+const exampleVersion = ref(0)
+const rootSchema = computed(() => inputSchema(props.record.input_schema, props.record.input_schema))
+const hasFields = computed(() => isJsonObject(rootSchema.value.properties) && Object.keys(rootSchema.value.properties).length > 0)
+const inputMode = ref(hasFields.value ? 'fields' : 'json')
+const inputModes = computed(() => [{ label: t('inputEditor.fields'), value: 'fields' }, { label: 'JSON', value: 'json' }])
+const form = useTemplateRef<HTMLFormElement>('inputForm')
+const fieldValue = computed<JsonValue>({
+  get: () => {
+    try {
+      return parseInputJson(input.value)
+    } catch {
+      return null
+    }
+  },
+  set: (value) => { input.value = JSON.stringify(value, null, 2) }
+})
+function changeMode(mode: string | number) {
+  if (mode === inputMode.value) return
+  if (inputMode.value === 'fields' && !form.value?.reportValidity()) return
+  if (mode === 'fields') {
+    try {
+      const parsed = parseInputJson(input.value)
+      if (parsed !== null && !isJsonObject(parsed)) throw new Error(t('ui.expectedAJsonObjectOrNull'))
+    } catch (problem) {
+      error.value = errorMessage(problem)
+      return
+    }
+  }
+  error.value = ''
+  inputMode.value = String(mode)
+}
 const running = ref(false)
 const cancelling = ref(false)
 const cancelled = ref(false)
@@ -23,6 +55,7 @@ const runId = ref<string | null>(null)
 const showSchema = ref(false)
 let controller: AbortController | undefined
 function fillExample() {
+  exampleVersion.value++
   initialInput.value = JSON.stringify(sampleInput(props.record.input_schema), null, 2)
   input.value = initialInput.value
 }
@@ -40,7 +73,7 @@ async function execute() {
   cancelling.value = false
   let value: JsonObject | null
   try {
-    value = JSON.parse(input.value)
+    value = parseInputJson(input.value) as JsonObject | null
     if (value !== null && (typeof value !== 'object' || Array.isArray(value)))
       throw new Error(t('ui.expectedAJsonObjectOrNull'))
   } catch (problem) {
@@ -132,10 +165,36 @@ onBeforeUnmount(() => controller?.abort())
           </div>
         </template>
         <form
+          ref="inputForm"
           class="space-y-4"
           @submit.prevent="execute"
         >
+          <div
+            v-if="hasFields"
+            class="flex items-center justify-between gap-3"
+          >
+            <span class="text-sm text-muted">{{ t('inputEditor.editor') }}</span>
+            <USelect
+              :model-value="inputMode"
+              :items="inputModes"
+              :aria-label="t('inputEditor.editor')"
+              :disabled="running"
+              class="w-36"
+              @update:model-value="changeMode"
+            />
+          </div>
+          <SchemaInputField
+            v-if="hasFields && inputMode === 'fields'"
+            :key="`${record.revision_id}:${exampleVersion}`"
+            v-model="fieldValue"
+            :schema="record.input_schema"
+            :root="record.input_schema"
+            label="Input"
+            required
+            :disabled="running"
+          />
           <UFormField
+            v-else
             label="Input · JSON"
             :description="t('ui.parametersArePassedToTheSelectedImplementation')"
           >

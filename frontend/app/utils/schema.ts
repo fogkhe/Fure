@@ -4,14 +4,14 @@ function object(value: JsonValue | undefined): value is JsonObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-export function sampleInput(schema: JsonObject): JsonValue {
+export function sampleInput(schema: JsonObject, rootSchema: JsonObject = schema): JsonValue {
   function sample(node: JsonObject, depth: number, name = ''): JsonValue {
     if (depth > 5) return null
     if ('default' in node) return node.default ?? null
     if ('const' in node) return node.const ?? null
     if (Array.isArray(node.enum) && node.enum.length) return node.enum[0] ?? null
     if (typeof node.$ref === 'string' && node.$ref.startsWith('#/')) {
-      let target: JsonValue = schema
+      let target: JsonValue = rootSchema
       for (const part of node.$ref.slice(2).split('/')) {
         if (!object(target)) return null
         target = target[part.replace(/~1/g, '/').replace(/~0/g, '~')] ?? null

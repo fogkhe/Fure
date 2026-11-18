@@ -47,7 +47,7 @@ FastAPI, so local development does not require CORS configuration.
 - Functions: creation, exact-name search, status filters and pagination.
 - Immutable Python/Inline and Jinja/OpenAI revisions: creation, cloning,
   source/schema inspection and selection of the current revision.
-- Execution with JSON input, output, duration and token counts; the Run button
+- Execution with schema-based fields or a JSON editor, output, duration and token counts; the Run button
   becomes Cancel while the user's execution is active and cancellable.
 - Global, per-function and per-revision history with polling and pagination.
 - Run details with input/output, errors, metadata and cancellation.
@@ -62,6 +62,11 @@ come from templates; output schemas are entered as JSON. An empty output
 schema {} requests text; with a nonempty schema, the Structured Outputs switch
 chooses provider enforcement or manual JSON extraction and schema validation.
 Manual mode supports optional reasoning end markers, one per line.
+Input fields support strings, numbers, booleans, enums, nested objects and arrays,
+including local schema references and nullable values. Optional fields can be
+omitted from the request. Switching editors preserves values and unknown keys;
+unsupported schema constructs use JSON editing. Final schema validation is
+performed by the backend.
 The API never returns stored provider API keys: provide a key again when copying a
 Jinja revision if the provider requires authentication.
 
