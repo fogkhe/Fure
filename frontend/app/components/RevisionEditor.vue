@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { FormError } from '@nuxt/ui'
 import type { RevisionRecord } from '~/types/api'
+import { outputSchemaIssue, readOutputSchema, writeOutputSchema } from '~/utils/outputSchema'
+import type { OutputNode } from '~/utils/outputSchema'
 
 const { errorMessage } = useFormatting()
 const { t } = useI18n()
@@ -31,6 +33,39 @@ const state = reactive({
 const saving = ref(false)
 const error = ref('')
 const created = ref<RevisionRecord | null>(null)
+const schemaDraft = ref<OutputNode>()
+const schemaSwitchError = ref('')
+const schemaMode = computed(() => schemaDraft.value ? 'fields' : 'json')
+const schemaModes = computed(() => [{ label: t('inputEditor.fields'), value: 'fields' }, { label: 'JSON', value: 'json' }])
+const schemaIssue = computed(() => schemaDraft.value && outputSchemaIssue(schemaDraft.value))
+watch([schemaIssue, () => state.outputSchema], () => {
+  schemaSwitchError.value = ''
+})
+
+function changeSchemaMode(mode: string) {
+  if (mode === schemaMode.value) return
+  schemaSwitchError.value = ''
+  if (schemaDraft.value) {
+    if (schemaIssue.value) {
+      schemaSwitchError.value = t(`outputSchema.${schemaIssue.value}`)
+      return
+    }
+    state.outputSchema = JSON.stringify(writeOutputSchema(schemaDraft.value), null, 2)
+    schemaDraft.value = undefined
+    return
+  }
+  try {
+    const draft = readOutputSchema(parseObject(state.outputSchema))
+    if (draft) schemaDraft.value = draft
+    else schemaSwitchError.value = t('outputSchema.requiresJson')
+  } catch (problem) {
+    schemaSwitchError.value = errorMessage(problem)
+  }
+}
+
+function getOutputSchema() {
+  return schemaDraft.value ? writeOutputSchema(schemaDraft.value) : parseObject(state.outputSchema)
+}
 const pythonExample = 'from pydantic import BaseModel\n\n\nclass Input(BaseModel):\n    name: str\n\n\nasync def function(input: Input) -> str:\n    return f"Hello, {input.name}!"\n'
 watch(open, (value) => {
   if (!value) {
@@ -42,6 +77,8 @@ watch(open, (value) => {
   state.code = initial?.implementation.type === 'python' ? initial.implementation.code : pythonExample
   state.template = initial?.implementation.type === 'jinja' ? initial.implementation.template : t('ui.greetNameBrieflyAndWarmly')
   state.outputSchema = initial ? JSON.stringify(initial.implementation.output_schema, null, 2) : '{}'
+  schemaDraft.value = readOutputSchema(initial?.implementation.output_schema ?? {})
+  schemaSwitchError.value = ''
   state.timeout = initial ? initial.runner_options.timeout == null ? '' : String(initial.runner_options.timeout) : '30'
   state.baseUrl = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.base_url : 'https://api.openai.com/v1'
   state.model = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.model : ''
@@ -69,10 +106,14 @@ function validate(): FormError[] {
     } catch {
       errors.push({ name: 'baseUrl', message: t('ui.enterAnHttpOrHttpsUrl') })
     }
-    try {
-      parseObject(state.outputSchema)
-    } catch (problem) {
-      errors.push({ name: 'outputSchema', message: errorMessage(problem) })
+    if (schemaIssue.value) {
+      errors.push({ name: 'outputSchema', message: t(`outputSchema.${schemaIssue.value}`) })
+    } else if (!schemaDraft.value) {
+      try {
+        parseObject(state.outputSchema)
+      } catch (problem) {
+        errors.push({ name: 'outputSchema', message: errorMessage(problem) })
+      }
     }
   }
   return errors
@@ -87,7 +128,7 @@ async function save() {
       const timeout = state.timeout === '' ? null : Number(state.timeout)
       const body = state.kind === 'python'
         ? { function_id: props.functionId, implementation: { type: 'python', code: state.code }, runner_options: { type: 'inline_python', timeout } }
-        : { function_id: props.functionId, implementation: { type: 'jinja', template: state.template, output_schema: parseObject(state.outputSchema) }, runner_options: { type: 'openai_jinja', timeout, base_url: state.baseUrl, model: state.model, api_key: state.apiKey || null, structured_outputs: state.structuredOutputs, reasoning_end_tags: state.reasoningEndTags.split('\n').filter(tag => tag.trim()) } }
+        : { function_id: props.functionId, implementation: { type: 'jinja', template: state.template, output_schema: getOutputSchema() }, runner_options: { type: 'openai_jinja', timeout, base_url: state.baseUrl, model: state.model, api_key: state.apiKey || null, structured_outputs: state.structuredOutputs, reasoning_end_tags: state.reasoningEndTags.split('\n').filter(tag => tag.trim()) } }
       created.value = await api<RevisionRecord>('/revisions', { method: 'POST', body })
       state.apiKey = ''
       emit('created', created.value)
@@ -216,14 +257,48 @@ async function save() {
             name="outputSchema"
             :description="t('ui.returnsATextResponseANonEmptySchemaDefines')"
           >
-            <UTextarea
-              v-model="state.outputSchema"
-              :rows="5"
-              :spellcheck="false"
-              :disabled="saving || !!created"
-              class="w-full"
-              :ui="{ base: 'font-mono text-sm' }"
-            />
+            <div class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-sm text-muted">{{ t('outputSchema.editor') }}</span>
+                <UFormField>
+                  <USelect
+                    :model-value="schemaMode"
+                    :items="schemaModes"
+                    :aria-label="t('outputSchema.editor')"
+                    :disabled="saving || !!created"
+                    class="w-36"
+                    @update:model-value="changeSchemaMode"
+                  />
+                </UFormField>
+              </div>
+              <p
+                v-if="schemaSwitchError"
+                role="alert"
+                class="text-sm text-error"
+              >
+                {{ schemaSwitchError }}
+              </p>
+              <template v-if="schemaDraft">
+                <p class="text-xs text-muted">
+                  {{ t('outputSchema.strictHint') }}
+                </p>
+                <OutputSchemaFields
+                  v-model="schemaDraft"
+                  root
+                  :disabled="saving || !!created"
+                />
+              </template>
+              <UTextarea
+                v-else
+                v-model="state.outputSchema"
+                :aria-label="t('ui.outputSchema')"
+                :rows="8"
+                :spellcheck="false"
+                :disabled="saving || !!created"
+                class="w-full"
+                :ui="{ base: 'font-mono text-sm' }"
+              />
+            </div>
           </UFormField>
           <USwitch
             v-model="state.structuredOutputs"

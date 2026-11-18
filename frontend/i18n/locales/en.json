@@ -373,6 +373,31 @@
     "permissions": "{count} permission | {count} permissions",
     "selection": "Selected: {count}. This list restricts access through MCP and REST API. An empty list grants no access to functions."
   },
+  "outputSchema": {
+    "editor": "Schema editor",
+    "strictHint": "Every field appears in the response. Allow null when a field may have no value. Objects accept only the fields listed here.",
+    "name": "Field name",
+    "type": "Type",
+    "types": {
+      "string": "String",
+      "integer": "Integer",
+      "number": "Number",
+      "boolean": "Boolean",
+      "object": "Object",
+      "array": "Array"
+    },
+    "allowNull": "Allow null",
+    "allowedValues": "Allowed values",
+    "addValue": "Type a value and press Enter",
+    "arrayItem": "Array item schema",
+    "field": "Field {index}",
+    "addField": "Add field",
+    "removeField": "Remove field {index}",
+    "requiresJson": "This schema uses constructs that can only be edited in JSON mode.",
+    "emptyName": "Enter a name for every field.",
+    "duplicateName": "Field names must be unique within each object.",
+    "depthLimit": "The schema is too deeply nested. Remove a level of nesting."
+  },
   "inputEditor": {
     "fields": "Fields",
     "editor": "Input editor",

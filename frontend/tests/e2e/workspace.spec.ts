@@ -200,8 +200,44 @@ test('Jinja editor derives input schema and stores structured output options', a
   await dialog.getByLabel('Адрес API').fill('http://127.0.0.1:9/v1')
   await dialog.getByLabel('Модель', { exact: true }).fill('test-model')
   await dialog.getByLabel('API ключ', { exact: true }).fill('fure-e2e-secret')
-  const schema = { type: 'object', properties: { greeting: { type: 'string' } }, required: ['greeting'], additionalProperties: false }
-  await dialog.getByLabel('Выходная схема').fill(JSON.stringify(schema))
+  const mode = dialog.getByRole('combobox', { name: 'Редактор схемы', exact: true })
+  await expect(mode).toContainText('Поля')
+  await dialog.getByRole('button', { name: 'Добавить поле', exact: true }).click()
+  await dialog.getByLabel('Имя поля', { exact: true }).fill('greetings')
+  await dialog.getByRole('combobox', { name: 'Тип', exact: true }).click()
+  await page.getByRole('option', { name: 'Массив', exact: true }).click()
+  const item = dialog.getByRole('group', { name: 'Схема элемента массива', exact: true })
+  await item.getByRole('combobox', { name: 'Тип', exact: true }).click()
+  await page.getByRole('option', { name: 'Объект', exact: true }).click()
+  await item.getByRole('button', { name: 'Добавить поле', exact: true }).click()
+  await item.getByLabel('Имя поля', { exact: true }).fill('greeting')
+  const field = item.getByRole('group', { name: 'Поле 1', exact: true })
+  await field.getByRole('checkbox', { name: 'Разрешить null', exact: true }).check()
+  const allowed = field.getByPlaceholder('Введите значение и нажмите Enter')
+  await allowed.fill('hello')
+  await allowed.press('Enter')
+  const schema = {
+    type: 'object',
+    properties: {
+      greetings: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { greeting: { type: ['string', 'null'], enum: ['hello', null] } },
+          required: ['greeting'],
+          additionalProperties: false
+        }
+      }
+    },
+    required: ['greetings'],
+    additionalProperties: false
+  }
+  await mode.click()
+  await page.getByRole('option', { name: 'JSON', exact: true }).click()
+  const schemaJson = dialog.getByRole('textbox', { name: 'Выходная схема', exact: true })
+  await expect(schemaJson).toHaveValue(JSON.stringify(schema, null, 2))
+  await mode.click()
+  await page.getByRole('option', { name: 'Поля', exact: true }).click()
   const saved = page.waitForResponse(response => response.url().endsWith('/api/v1/revisions') && response.request().method() === 'POST')
   await dialog.getByRole('button', { name: 'Сохранить версию' }).click()
   const revision = await (await saved).json()
@@ -215,6 +251,7 @@ test('Jinja editor derives input schema and stores structured output options', a
   await page.getByRole('button', { name: 'Новая версия', exact: true }).click()
   await expect(page.getByLabel('API ключ', { exact: true })).toHaveValue('')
   await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('test-model')
+  await expect(item.getByLabel('Имя поля', { exact: true })).toHaveValue('greeting')
 })
 
 test('mobile layout, theme and recoverable API errors', async ({ page }, info) => {
