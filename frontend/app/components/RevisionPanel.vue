@@ -119,8 +119,8 @@ async function activate() {
           v-model:page="page"
           :total="data.total"
           :items-per-page="10"
-          :sibling-count="0"
           size="xs"
+          :ui="{ list: 'flex-wrap' }"
         />
       </div>
       <UCard
@@ -158,7 +158,7 @@ async function activate() {
         />
         <pre
           v-if="previewTab === 'source'"
-          class="max-h-96 overflow-auto rounded-lg bg-elevated/40 p-4 font-mono text-sm leading-6 whitespace-pre-wrap break-words"
+          class="rounded-lg bg-elevated/40 p-4 font-mono text-sm leading-6 whitespace-pre-wrap break-words"
         >{{ selected.implementation.type === 'python' ? selected.implementation.code : selected.implementation.template }}</pre>
         <div
           v-else-if="previewTab === 'schemas'"
