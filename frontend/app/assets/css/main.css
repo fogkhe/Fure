@@ -8,10 +8,36 @@
 
 .light {
   --ui-bg: #fffffa;
+  --ui-bg-muted: color-mix(in srgb, var(--ui-bg), black 3%);
+  --ui-bg-elevated: color-mix(in srgb, var(--ui-bg), black 5%);
+  --ui-bg-accented: color-mix(in srgb, var(--ui-bg), black 11%);
+  --ui-bg-inverted: var(--ui-text-highlighted);
+  --ui-border: color-mix(in srgb, var(--ui-bg), black 10%);
+  --ui-border-muted: color-mix(in srgb, var(--ui-bg), black 7%);
+  --ui-border-accented: color-mix(in srgb, var(--ui-bg), black 24%);
+  --ui-border-inverted: var(--ui-bg-inverted);
+  --ui-text-dimmed: color-mix(in srgb, var(--ui-bg), black 56%);
+  --ui-text-muted: color-mix(in srgb, var(--ui-bg), black 65%);
+  --ui-text-toned: color-mix(in srgb, var(--ui-bg), black 76%);
+  --ui-text: color-mix(in srgb, var(--ui-bg), black 86%);
+  --ui-text-highlighted: color-mix(in srgb, var(--ui-bg), black 92%);
+  --ui-text-inverted: var(--ui-bg);
 }
 
 .dark {
   --ui-bg: #1c1c2a;
+  --ui-bg-muted: color-mix(in srgb, var(--ui-bg), white 3%);
+  --ui-bg-elevated: color-mix(in srgb, var(--ui-bg), white 5%);
+  --ui-bg-accented: color-mix(in srgb, var(--ui-bg), white 11%);
+  --ui-border: color-mix(in srgb, var(--ui-bg), white 10%);
+  --ui-border-muted: color-mix(in srgb, var(--ui-bg), white 7%);
+  --ui-border-accented: color-mix(in srgb, var(--ui-bg), white 24%);
+  --ui-text-dimmed: color-mix(in srgb, var(--ui-bg), white 54%);
+  --ui-text-muted: color-mix(in srgb, var(--ui-bg), white 64%);
+  --ui-text-toned: color-mix(in srgb, var(--ui-bg), white 76%);
+  --ui-text: color-mix(in srgb, var(--ui-bg), white 86%);
+  --ui-text-highlighted: color-mix(in srgb, var(--ui-bg), white 96%);
+  --ui-text-inverted: var(--ui-bg);
 }
 
 :root[data-theme-reveal]::view-transition-group(root),
