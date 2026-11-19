@@ -6,6 +6,14 @@
   --font-sans: 'Public Sans Variable', sans-serif;
 }
 
+.light {
+  --ui-bg: #fffffa;
+}
+
+.dark {
+  --ui-bg: #1c1c2a;
+}
+
 :root[data-theme-reveal]::view-transition-group(root),
 :root[data-theme-reveal]::view-transition-old(root) {
   animation: none;

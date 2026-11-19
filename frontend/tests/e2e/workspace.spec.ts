@@ -300,6 +300,7 @@ test('mobile layout, theme and recoverable API errors', async ({ page }, info) =
   })
   await theme.click()
   await expect(page.locator('html')).toHaveClass(/dark/)
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(28, 28, 42)')
   if (await page.evaluate(() => typeof document.startViewTransition === 'function')) {
     await expect(page.locator('html')).toHaveAttribute('data-theme-animation-seen', 'true')
   }
@@ -308,6 +309,7 @@ test('mobile layout, theme and recoverable API errors', async ({ page }, info) =
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await theme.press('Enter')
   await expect(page.locator('html')).toHaveClass(/light/)
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 250)')
   await expect(page.locator('html')).not.toHaveAttribute('data-theme-reveal')
   await page.route('**/api/v1/functions?**', route => route.abort('connectionrefused'))
   await page.reload()
