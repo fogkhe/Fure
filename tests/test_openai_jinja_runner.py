@@ -98,6 +98,19 @@ class OpenAIJinjaRunnerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(self.clients[0].is_closed())
 
+    async def test_shared_vars_are_rendered_separately_from_user_input(self):
+        implementation = JinjaImplementation("{{ vars.apiKey }}: {{ name }}")
+        self.assertEqual(implementation.input_schema["required"], ["name"])
+        await self.runner.run(
+            implementation,
+            {"name": "world", "vars": {"apiKey": "input"}},
+            variables={"apiKey": "shared"},
+        )
+        self.assertEqual(
+            json.loads(self.requests[0].content)["messages"],
+            [{"role": "user", "content": "shared: world"}],
+        )
+
     async def test_call_options_override_runner_options(self):
         options = OpenAIJinjaRunnerOptions(
             timeout=20,

@@ -29,6 +29,10 @@ and return 404 when addressed directly. Manage the selection with
 | POST | `/v1/functions/{function_id}/run` | Execute the current revision; `wait=false` returns the run immediately |
 | GET | `/v1/revisions` | List revisions; filter by `function_id` |
 | POST | `/v1/revisions` | Create an immutable implementation version |
+| GET | `/v1/variables` | List shared variables and visible values |
+| POST | `/v1/variables` | Create a shared variable |
+| PATCH | `/v1/variables/{name}` | Replace a variable's value |
+| DELETE | `/v1/variables/{name}` | Delete a shared variable |
 | GET | `/v1/revisions/{revision_id}` | Get implementation source, schemas and public runner settings |
 | GET | `/v1/runs` | List execution history; filter by `function_id`, `revision_id`, `status` |
 | GET | `/v1/runs/{run_id}` | Get execution input, output, metadata, status and timestamps |
@@ -43,6 +47,41 @@ Lists are ordered newest first. Function lists exclude deleted functions by
 default; `deleted=true` selects deleted functions.
 The function list's `name` filter matches a literal substring regardless of case.
 For example, `name=reet` finds `greet` and `GREETING`.
+
+## Shared variables
+
+The Variables tab uses `/v1/variables`. A create request contains `name`,
+`value` and `secret` (default `false`). Names are case-sensitive and use up to
+64 Latin letters, digits or underscores, starting with a letter or underscore.
+Ordinary values are JSON. Secret values are non-empty strings and the API omits
+their `value` from every response. `PATCH` takes `{"value": ...}`. A variable's
+name and secret flag are set at creation. Read access requires `variables.read`
+or `variables.manage`. Writes require `variables.manage`.
+
+To enable secrets, generate a key with the command below and set
+`VARIABLES_ENCRYPTION_KEY` on the backend. For Docker Compose, set it in the root
+`.env` file. Keep the same key across restarts and workers, with a backup separate
+from the database. Ordinary variables work without a key.
+
+```sh
+uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+New Jinja versions receive the shared dictionary as `vars`, for example
+`{{ vars.defaultLanguage }}`. Older versions that declared `vars` as a user
+input keep that contract. Python functions can opt in by declaring `vars`.
+Its annotation does not determine any schema, so built-in `dict[str, object]`
+works without a Fure import.
+
+```python
+async def function(input: None, vars: dict[str, object]) -> str:
+    return str(vars["defaultLanguage"])
+```
+
+Each run gets the current values, including secrets, when it starts. `vars` is
+separate from user input and is excluded from schemas, MCP tool definitions and
+run records. Implementations are trusted to handle their values. Output is
+recorded as returned, and Jinja rendering can include values in provider prompts.
 
 ## Create, version and run a function
 

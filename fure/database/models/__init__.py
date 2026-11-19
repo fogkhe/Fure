@@ -3,6 +3,7 @@ from fure.database.models.base import (
     Base,
 )
 from fure.database.models.entities import FunctionRow, RevisionRow, RunRow
+from fure.database.models.variables import VariableRow
 
 __all__ = [
     "APIKeyRow",
@@ -13,4 +14,5 @@ __all__ = [
     "RunRow",
     "SessionRow",
     "UserRow",
+    "VariableRow",
 ]

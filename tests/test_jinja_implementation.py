@@ -23,6 +23,21 @@ class JinjaImplementationTests(unittest.TestCase):
         self.assertEqual(implementation.render({"name": "world"}), "Hello, world!")
         self.assertEqual(implementation.output_schema, {})
 
+    def test_legacy_revision_keeps_vars_as_user_input(self):
+        implementation = JinjaImplementation.restore(
+            "{{ vars }}",
+            input_schema={
+                "type": "object",
+                "required": ["vars"],
+                "properties": {"vars": {}},
+            },
+            output_schema={},
+        )
+        self.assertEqual(
+            implementation.render({"vars": "legacy"}, variables={"key": "shared"}),
+            "legacy",
+        )
+
     def test_variable_names_are_unique_and_sorted(self):
         implementation = JinjaImplementation("{{ z }} {{ a | upper }} {{ z }}")
 

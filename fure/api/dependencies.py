@@ -12,6 +12,7 @@ from fure.services.auth import AuthService, require
 from fure.services.errors import Forbidden, Unauthorized, Unavailable
 from fure.services.execution import ExecutionService
 from fure.services.resources import FunctionService, RevisionService, RunService
+from fure.services.variables import VariableService
 
 
 def get_database(request: Request) -> Database:
@@ -109,7 +110,15 @@ def get_execution_service(request: Request) -> ExecutionService:
     return executions
 
 
+def get_variable_service(request: Request) -> VariableService:
+    variables = getattr(request.app.state, "variables", None)
+    if variables is None:
+        raise Unavailable("Application has not started")
+    return variables
+
+
 type FunctionServiceDep = Annotated[FunctionService, Depends(get_function_service)]
 type RevisionServiceDep = Annotated[RevisionService, Depends(get_revision_service)]
 type RunServiceDep = Annotated[RunService, Depends(get_run_service)]
 type ExecutionServiceDep = Annotated[ExecutionService, Depends(get_execution_service)]
+type VariableServiceDep = Annotated[VariableService, Depends(get_variable_service)]

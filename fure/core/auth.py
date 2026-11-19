@@ -19,6 +19,8 @@ class Permission(StrEnum):
     USERS_MANAGE = "users.manage"
     ROLES_MANAGE = "roles.manage"
     KEYS_MANAGE = "keys.manage"
+    VARIABLES_READ = "variables.read"
+    VARIABLES_MANAGE = "variables.manage"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

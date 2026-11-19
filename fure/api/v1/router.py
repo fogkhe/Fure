@@ -9,6 +9,7 @@ from fure.api.v1.routers import (
     run,
     runs,
     users,
+    variables,
 )
 from fure.api.v1.schemas import ErrorResponse
 
@@ -41,3 +42,4 @@ router.include_router(auth.router, prefix="/auth", tags=["auth"])
 router.include_router(users.router, prefix="/users", tags=["users"])
 router.include_router(roles.router, prefix="/roles", tags=["roles"])
 router.include_router(keys.router, prefix="/keys", tags=["keys"])
+router.include_router(variables.router, prefix="/variables", tags=["variables"])

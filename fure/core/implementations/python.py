@@ -22,6 +22,7 @@ class _InspectResult:
     input_adapter: TypeAdapter[BaseModel | None]
     output_adapter: TypeAdapter[BaseModel | JSONValue]
     function: Callable[..., Awaitable[BaseModel | JSONValue]]
+    accepts_vars: bool
     input_schema: JSONSchema
     output_schema: JSONSchema
 
@@ -76,14 +77,28 @@ class PythonImplementation(BaseImplementation):
             schema = self._prepare().output_schema
         return deepcopy(schema)
 
-    async def execute(self, input: dict[str, JSONValue] | None) -> JSONValue:
+    @property
+    def accepts_vars(self) -> bool:
+        return self._prepare().accepts_vars
+
+    async def execute(
+        self,
+        input: dict[str, JSONValue] | None,
+        *,
+        variables: dict[str, JSONValue] | None = None,
+    ) -> JSONValue:
         inspect_result = self._prepare()
         try:
             validated_input = inspect_result.input_adapter.validate_python(input)
         except ValidationError as error:
             raise InputValidationError(str(error)) from error
 
-        output = await inspect_result.function(input=validated_input)
+        if inspect_result.accepts_vars:
+            output = await inspect_result.function(
+                input=validated_input, vars=variables if variables is not None else {}
+            )
+        else:
+            output = await inspect_result.function(input=validated_input)
 
         validated_output = inspect_result.output_adapter.validate_python(output)
         return inspect_result.output_adapter.dump_python(validated_output, mode="json")
@@ -125,11 +140,19 @@ class PythonImplementation(BaseImplementation):
                 "'function' must be a coroutine function",
             )
         signature = inspect.signature(function, annotation_format=Format.STRING)
+        vars_parameter = signature.parameters.get("vars")
+        accepts_vars = vars_parameter is not None and vars_parameter.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
         try:
-            signature.bind(input=...)
+            if accepts_vars:
+                signature.bind(input=..., vars=...)
+            else:
+                signature.bind(input=...)
         except TypeError as error:
             raise TypeError(
-                "'function' must be bindable to (input=...)",
+                "'function' must be bindable to (input=...) or (input=..., vars=...)",
             ) from error
 
         input_parameter = signature.parameters.get("input")
@@ -206,6 +229,7 @@ class PythonImplementation(BaseImplementation):
             input_adapter=input_adapter,
             output_adapter=output_adapter,
             function=function,
+            accepts_vars=accepts_vars,
             input_schema=input_schema,
             output_schema=output_schema,
         )

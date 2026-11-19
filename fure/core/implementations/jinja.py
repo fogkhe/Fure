@@ -64,16 +64,30 @@ class JinjaImplementation(BaseImplementation):
     def output_schema(self) -> JSONSchema:
         return deepcopy(self._output_schema)
 
-    def render(self, input: dict[str, JSONValue] | None) -> str:
+    @property
+    def accepts_vars(self) -> bool:
+        # Older versions could declare a user input named vars.
+        return "vars" not in self._input_schema.get("required", [])
+
+    def render(
+        self,
+        input: dict[str, JSONValue] | None,
+        *,
+        variables: dict[str, JSONValue] | None = None,
+    ) -> str:
         if self._compiled_template is None:
             self._compiled_template = self._compile(self._template).compiled_template
-        return self._compiled_template.render({} if input is None else input)
+        context = dict(input or {})
+        if self.accepts_vars:
+            context["vars"] = variables if variables is not None else {}
+        return self._compiled_template.render(context)
 
     @staticmethod
     def _compile(template: str) -> _CompileResult:
         environment = ImmutableSandboxedEnvironment(
             undefined=StrictUndefined,
         )
+        environment.globals["vars"] = StrictUndefined(name="vars")
 
         try:
             parsed_template = environment.parse(template)

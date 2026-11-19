@@ -111,7 +111,7 @@ test('login and JSON validation errors use the selected language', async ({ page
   await dialog.getByRole('combobox', { name: 'Implementation', exact: true }).click()
   await page.getByRole('option', { name: 'Jinja · OpenAI', exact: true }).click()
   await dialog.getByLabel('Model', { exact: true }).fill('test-model')
-  await expect(dialog.getByLabel('Jinja template', { exact: true })).toHaveText('Greet {{ name }} briefly and warmly.')
+  await expect(dialog.getByLabel('Jinja template', { exact: true })).toHaveText('Greet {{ name }} briefly and warmly. Start with {{ vars.get(\'greeting\', \'Hello\') }}.')
   await expect(dialog.getByText('{} returns a text response. A non-empty schema defines the JSON output format.', { exact: true })).toBeVisible()
   await dialog.getByRole('combobox', { name: 'Schema editor', exact: true }).click()
   await page.getByRole('option', { name: 'JSON', exact: true }).click()

@@ -8,6 +8,10 @@ export interface Page<T> {
   size: number
 }
 
+export type VariableRecord = { name: string, updated_at: string } & (
+  { secret: true } | { secret: false, value: JsonValue }
+)
+
 export interface FunctionRecord {
   id: string
   name: string

@@ -4,12 +4,14 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import AsyncMock, patch
 
 import httpx2
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from openai import APIConnectionError
 
 from fure.api.app import create_app
 from fure.core.implementations import PythonImplementation
 from fure.core.runners import OpenAIJinjaRunMeta, RunResult
+from fure.database.models import VariableRow
 from fure.settings import Settings
 from tests.auth_support import bootstrap, login
 from tests.database_support import isolated_database
@@ -23,6 +25,7 @@ class APITests(unittest.TestCase):
         self.settings = Settings(
             database_url=url,
             execution_heartbeat_interval=0.05,
+            variables_encryption_key=Fernet.generate_key().decode(),
         )
         self.app = create_app(self.settings)
         self.client = self.enterContext(TestClient(self.app))
@@ -214,6 +217,79 @@ class APITests(unittest.TestCase):
         ).json()
         self.assertEqual(enabled["total"], 1)
         self.assertEqual(enabled["items"][0]["name"], "pre-GREET_alpha")
+
+    def test_shared_variables_are_live_and_secret_values_are_hidden_from_the_catalogue(
+        self,
+    ):
+        secret = "test-catalogue-secret"
+        variables = {
+            "apiKey": (True, secret),
+            "API_KEY": (False, {"enabled": True}),
+            "empty": (False, None),
+        }
+        for name, (is_secret, value) in variables.items():
+            response = self.client.post(
+                "/v1/variables",
+                json={"name": name, "secret": is_secret, "value": value},
+            )
+            self.assertEqual(response.status_code, 201, response.text)
+            if is_secret:
+                self.assertNotIn("value", response.json())
+            else:
+                self.assertEqual(response.json()["value"], value)
+        listing = self.client.get("/v1/variables")
+        self.assertEqual(listing.status_code, 200, listing.text)
+        self.assertEqual(listing.json()["total"], 3)
+        self.assertNotIn(secret, listing.text)
+
+        async def read_payload():
+            async with self.app.state.database.sessions() as session:
+                row = await session.get(VariableRow, "apiKey")
+                return row.payload
+
+        payload = self.client.portal.call(read_payload)
+        self.assertNotIn(secret, payload)
+        cipher = Fernet(self.settings.variables_encryption_key.get_secret_value())
+        self.assertEqual(cipher.decrypt(payload.encode()).decode(), f'"{secret}"')
+
+        key = self.client.post(
+            "/v1/keys",
+            json={"name": "variable-reader", "permissions": ["variables.read"]},
+        )
+        self.assertEqual(key.status_code, 201, key.text)
+        headers = {"Authorization": f"Bearer {key.json()['secret']}"}
+        self.assertEqual(
+            self.client.get("/v1/variables", headers=headers).status_code, 200
+        )
+        self.assertEqual(
+            self.client.delete("/v1/variables/apiKey", headers=headers).status_code, 403
+        )
+
+        function = self.function()
+        revision = self.revision(
+            function["id"],
+            "from fure.core.types import JSONValue\n"
+            "async def function(input: None, vars: dict[str, JSONValue]) -> dict:\n"
+            "    return {'length': len(vars['apiKey']), 'config': vars['API_KEY']}\n",
+        )
+        self.assertEqual(revision["implementation"]["input_schema"], {"type": "null"})
+        first = self.client.post("/v1/run/greet", json={})
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(
+            first.json()["output"], {"length": len(secret), "config": {"enabled": True}}
+        )
+        run = self.client.get(f"/v1/runs/{first.headers['X-Run-Id']}")
+        self.assertIsNone(run.json()["input"])
+        self.assertNotIn(secret, run.text)
+
+        changed = self.client.patch("/v1/variables/apiKey", json={"value": "rotated"})
+        self.assertEqual(changed.status_code, 200, changed.text)
+        self.assertNotIn("value", changed.json())
+        self.assertEqual(
+            self.client.post("/v1/run/greet", json={}).json()["output"]["length"], 7
+        )
+        self.assertEqual(self.client.delete("/v1/variables/apiKey").status_code, 204)
+        self.assertEqual(self.client.get("/v1/variables").json()["total"], 2)
 
     def test_function_crud_filters_pagination_and_name_reuse(self):
         first = self.function(description="old")

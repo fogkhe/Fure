@@ -52,7 +52,7 @@ test('create, version, execute, rename, delete and restore a function', async ({
   await create.getByRole('button', { name: 'Создать функцию' }).click()
   const editor = page.getByRole('dialog')
   const codeBox = editor.getByRole('textbox', { name: 'Python-код' })
-  await expect(codeBox).toContainText('async def function')
+  await expect(codeBox).toContainText('async def function(input: Input, vars: dict[str, object])')
   await expect(codeBox.locator('.tok-keyword').first()).toBeVisible()
   await codeBox.fill('def example():')
   await codeBox.press('End')

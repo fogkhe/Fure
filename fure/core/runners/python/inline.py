@@ -28,6 +28,8 @@ class InlinePythonRunner(
         implementation: PythonImplementation,
         input: dict[str, JSONValue] | None,
         options: BasePythonRunnerOptions | None = None,
+        *,
+        variables: dict[str, JSONValue] | None = None,
     ) -> RunResult[InlinePythonRunMeta]:
         options = options if options is not None else self._options
         if not isinstance(options, BasePythonRunnerOptions):
@@ -35,7 +37,10 @@ class InlinePythonRunner(
 
         start_time = monotonic()
         async with asyncio.timeout(options.timeout):
-            output = await implementation.execute(input)
+            if variables is None:
+                output = await implementation.execute(input)
+            else:
+                output = await implementation.execute(input, variables=variables)
         duration = monotonic() - start_time
 
         return RunResult(

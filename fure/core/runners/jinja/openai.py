@@ -49,6 +49,8 @@ class OpenAIJinjaRunner(
         implementation: JinjaImplementation,
         input: dict[str, JSONValue] | None,
         options: OpenAIJinjaRunnerOptions | None = None,
+        *,
+        variables: dict[str, JSONValue] | None = None,
     ) -> RunResult[OpenAIJinjaRunMeta]:
         options = options if options is not None else self._options
 
@@ -69,7 +71,7 @@ class OpenAIJinjaRunner(
 
         start_time = monotonic()
 
-        prompt = implementation.render(input)
+        prompt = implementation.render(input, variables=variables)
 
         messages = []
         if json_output:

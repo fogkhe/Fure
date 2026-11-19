@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { randomBytes } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
@@ -24,7 +25,10 @@ export default defineConfig({
     {
       command: `"${python}" -m tests.e2e_server`,
       cwd: root,
-      env: { DATABASE_URL: `sqlite+aiosqlite:///${database}` },
+      env: {
+        DATABASE_URL: `sqlite+aiosqlite:///${database}`,
+        VARIABLES_ENCRYPTION_KEY: randomBytes(32).toString('base64').replaceAll('+', '-').replaceAll('/', '_')
+      },
       url: 'http://127.0.0.1:8011/health',
       reuseExistingServer: false
     },

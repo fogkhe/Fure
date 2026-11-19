@@ -30,6 +30,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://fure:fure@database:5432/fure
       SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
       SESSION_LIFETIME_SECONDS: "${SESSION_LIFETIME_SECONDS:-604800}"
+      VARIABLES_ENCRYPTION_KEY: "${VARIABLES_ENCRYPTION_KEY:-}"
     volumes:
       - app_data:/app/data
     ports:

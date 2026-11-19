@@ -40,6 +40,7 @@ from fure.services.errors import (
     Unauthorized,
     Unavailable,
 )
+from fure.services.variables import VariableService
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +50,14 @@ class ExecutionService:
         self,
         database: Database,
         *,
+        variables: VariableService | None = None,
         heartbeat_interval: float = 1.0,
         lease_seconds: float = 30.0,
     ) -> None:
         self.database = database
+        self.variables = (
+            variables if variables is not None else VariableService(database)
+        )
         self.worker_id = uuid7()
         self.heartbeat_interval = heartbeat_interval
         self.lease_seconds = lease_seconds
@@ -225,6 +230,7 @@ class ExecutionService:
 
     async def _perform(self, run: Run) -> Run:
         start = monotonic()
+        has_secrets = False
         try:
             run.start()
             async with self.database.sessions.begin() as session:
@@ -245,7 +251,14 @@ class ExecutionService:
                 else InlinePythonRunner(options)
             )
             async with asyncio.timeout(options.timeout):
-                result = await runner.run(run.revision.implementation, run.input)
+                implementation = run.revision.implementation
+                if implementation.accepts_vars:
+                    variables, has_secrets = await self.variables.execution_values()
+                    result = await runner.run(
+                        implementation, run.input, variables=variables
+                    )
+                else:
+                    result = await runner.run(implementation, run.input)
             json.dumps(result.output, allow_nan=False)
             run.succeed(result.output, result.meta, result.duration)
             async with self.database.sessions.begin() as session:
@@ -267,7 +280,12 @@ class ExecutionService:
             raise
         except (Exception, SystemExit, KeyboardInterrupt) as error:
             if isinstance(error, (InputValidationError, UndefinedError)):
-                failure = InvalidInput(str(error), code="invalid_input", run_id=run.id)
+                message = (
+                    "Function input or variables are invalid"
+                    if has_secrets
+                    else str(error)
+                )
+                failure = InvalidInput(message, code="invalid_input", run_id=run.id)
             elif isinstance(error, (TimeoutError, APITimeoutError)):
                 failure = ExecutionTimedOut(
                     "Execution timed out", code="timeout", run_id=run.id
@@ -275,6 +293,12 @@ class ExecutionService:
             elif isinstance(error, APIError):
                 failure = ProviderFailed(
                     "LLM provider request failed", code="provider_error", run_id=run.id
+                )
+            elif isinstance(error, Unavailable):
+                failure = Unavailable(
+                    "Shared variables are unavailable",
+                    code="variables_unavailable",
+                    run_id=run.id,
                 )
             else:
                 failure = ExecutionFailed(

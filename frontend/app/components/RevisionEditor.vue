@@ -66,7 +66,17 @@ function changeSchemaMode(mode: string) {
 function getOutputSchema() {
   return schemaDraft.value ? writeOutputSchema(schemaDraft.value) : parseObject(state.outputSchema)
 }
-const pythonExample = 'from pydantic import BaseModel\n\n\nclass Input(BaseModel):\n    name: str\n\n\nasync def function(input: Input) -> str:\n    return f"Hello, {input.name}!"\n'
+const pythonExample = `from pydantic import BaseModel
+
+
+class Input(BaseModel):
+    name: str
+
+
+async def function(input: Input, vars: dict[str, object]) -> str:
+    greeting = vars.get("greeting", "Hello")
+    return f"{greeting}, {input.name}!"
+`
 watch(open, (value) => {
   if (!value) {
     state.apiKey = ''
@@ -75,7 +85,7 @@ watch(open, (value) => {
   const initial = props.initial
   state.kind = initial?.implementation.type || 'python'
   state.code = initial?.implementation.type === 'python' ? initial.implementation.code : pythonExample
-  state.template = initial?.implementation.type === 'jinja' ? initial.implementation.template : t('ui.greetNameBrieflyAndWarmly')
+  state.template = initial?.implementation.type === 'jinja' ? initial.implementation.template : t('ui.greetNameWithSharedGreeting')
   state.outputSchema = initial ? JSON.stringify(initial.implementation.output_schema, null, 2) : '{}'
   schemaDraft.value = readOutputSchema(initial?.implementation.output_schema ?? {})
   schemaSwitchError.value = ''

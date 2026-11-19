@@ -15,6 +15,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo('/login')
   if (auth.session.value && to.path === '/login')
     return navigateTo(auth.home())
+  if (to.path === '/variables' && !auth.can('variables.read') && !auth.can('variables.manage'))
+    return navigateTo('/account')
   const permission = to.path === '/' || to.path.startsWith('/functions/')
     ? 'functions.read'
     : to.path.startsWith('/runs')

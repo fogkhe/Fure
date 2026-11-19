@@ -37,4 +37,6 @@ class BaseRunner[
         implementation: ImplementationT,
         input: dict[str, JSONValue] | None,
         options: RunnerOptionsT | None = None,
+        *,
+        variables: dict[str, JSONValue] | None = None,
     ) -> RunResult[RunMetaT]: ...

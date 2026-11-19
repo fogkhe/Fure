@@ -15,6 +15,7 @@ const toast = useToast()
 const items = computed<NavigationMenuItem[]>(() => [
   ...(auth.can('functions.read') ? [{ label: t('ui.functions'), icon: 'i-lucide-square-function', to: '/', exact: true }] : []),
   ...(auth.can('runs.read') ? [{ label: t('ui.runs'), icon: 'i-lucide-activity', to: '/runs' }] : []),
+  ...(auth.can('variables.read') || auth.can('variables.manage') ? [{ label: t('variables.title'), icon: 'i-lucide-variable', to: '/variables' }] : []),
   ...(auth.can('users.manage') ? [{ label: t('ui.users'), icon: 'i-lucide-users', to: '/users' }] : []),
   ...(auth.can('roles.manage') ? [{ label: t('ui.roles'), icon: 'i-lucide-shield', to: '/roles' }] : [])
 ])

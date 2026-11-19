@@ -1,0 +1,37 @@
+import { expect, login, test } from './fixtures'
+
+test.use({ interfaceLocale: 'en' })
+
+test('shared variables can be added and replaced while secret values stay hidden', async ({ page, context }) => {
+  await login(context.request)
+  await page.goto('/')
+  await page.getByRole('link', { name: 'Variables', exact: true }).click()
+  const create = page.getByRole('button', { name: 'New variable', exact: true })
+  const dialog = page.getByRole('dialog')
+  const save = dialog.getByRole('button', { name: 'Save variable', exact: true })
+
+  await create.click()
+  await dialog.getByLabel('Name', { exact: true }).fill('defaultLanguage')
+  await dialog.getByRole('textbox', { name: 'JSON value', exact: true }).fill('"en"')
+  await save.click()
+  const ordinary = page.getByRole('row').filter({ hasText: 'defaultLanguage' })
+  await expect(ordinary).toContainText('"en"')
+
+  await create.click()
+  await dialog.getByLabel('Name', { exact: true }).fill('providerToken')
+  await dialog.getByRole('switch', { name: 'Secret', exact: true }).check()
+  const secretValue = dialog.getByLabel('Secret value', { exact: true })
+  await secretValue.fill('browser-test-secret')
+  await save.click()
+  const secret = page.getByRole('row').filter({ hasText: 'providerToken' })
+  await expect(secret).toContainText('Secret set')
+  await expect(secret).not.toContainText('browser-test-secret')
+  await secret.getByRole('button', { name: 'Edit variable', exact: true }).click()
+  await expect(secretValue).toHaveValue('')
+  await secretValue.fill('new-browser-test-secret')
+  await save.click()
+  await expect(dialog).not.toBeVisible()
+  await secret.getByRole('button', { name: 'Delete variable', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Delete variable', exact: true }).click()
+  await expect(secret).toHaveCount(0)
+})

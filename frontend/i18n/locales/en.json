@@ -58,7 +58,7 @@
     "readingFunctionsPermissionIsRequiredToSelectFunctions": "Reading functions permission is required to select functions.",
     "couldNotLoadData": "Could not load data",
     "retry": "Retry",
-    "greetNameBrieflyAndWarmly": "Greet {'{'}{'{'} name {'}'}{'}'} briefly and warmly.",
+    "greetNameWithSharedGreeting": "Greet {'{'}{'{'} name {'}'}{'}'} briefly and warmly. Start with {'{'}{'{'} vars.get('greeting', 'Hello') {'}'}{'}'}.",
     "enterANumberGreaterThanOrEqualToZero": "Enter a number greater than or equal to zero, or leave the field empty.",
     "addTheFunctionCode": "Add the function code.",
     "specifyAModel": "Specify a model.",
@@ -288,6 +288,10 @@
     "select": "Interface language"
   },
   "permissions": {
+    "variables": {
+      "read": "View shared variables",
+      "manage": "Manage shared variables"
+    },
     "mcp": {
       "access": "Connect to MCP"
     },
@@ -316,6 +320,12 @@
     }
   },
   "errors": {
+    "invalidInputOrVariables": "Function input or variables are invalid",
+    "variablesUnavailable": "Shared variables are unavailable",
+    "variableEncryptionMissing": "Secret variable encryption is not configured",
+    "variableSecretRequired": "A secret variable requires a non-empty string",
+    "variableNameConflict": "Variable name is already in use",
+    "variableNotFound": "Variable not found",
     "timeout": "Execution timed out",
     "providerFailed": "LLM provider request failed",
     "executionFailed": "Function execution failed",
@@ -399,6 +409,26 @@
     "emptyName": "Enter a name for every field.",
     "duplicateName": "Field names must be unique within each object.",
     "depthLimit": "The schema is too deeply nested. Remove a level of nesting."
+  },
+  "variables": {
+    "title": "Variables",
+    "description": "Shared values available to function implementations through vars.",
+    "create": "New variable",
+    "edit": "Edit variable",
+    "delete": "Delete variable",
+    "empty": "No shared variables yet",
+    "value": "Value",
+    "updated": "Updated",
+    "secret": "Secret",
+    "secretSet": "Secret set",
+    "secretHint": "The stored value can only be replaced.",
+    "secretValue": "Secret value",
+    "secretRequired": "Enter a secret value.",
+    "jsonValue": "JSON value",
+    "jsonHint": "Use quotes for a text value.",
+    "invalidName": "Use up to 64 Latin letters, digits or underscores. Start with a letter or underscore.",
+    "save": "Save variable",
+    "deleteHint": "Delete {name}? Functions will no longer receive this variable on new runs."
   },
   "inputEditor": {
     "fields": "Fields",

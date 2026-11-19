@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     execution_lease_seconds: float = Field(default=30, ge=10, allow_inf_nan=False)
     session_lifetime_seconds: int = Field(default=604800, ge=60)
     session_cookie_secure: bool = False
+    variables_encryption_key: Secret[str] | None = None
 
     @model_validator(mode="after")
     def validate_lease(self) -> Self:

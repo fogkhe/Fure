@@ -33,6 +33,8 @@ Python and Jinja use the same permissions.
 | `runs.cancel_all` | Cancel others' active runs, including anonymous runs (requires `runs.read` and `runs.read_all` for the returned execution details) |
 | `users.manage` | Create/update users, assign roles, reset passwords and block access |
 | `roles.manage` | Create/update/delete roles |
+| `variables.read` | List shared variables, with secret values omitted |
+| `variables.manage` | List, create, replace and delete shared variables |
 | `keys.manage` | Create/list/revoke the current user's API keys and change their function selections |
 
 The `admin` role includes every permission and cannot be edited or deleted.
