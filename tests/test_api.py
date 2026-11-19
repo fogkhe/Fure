@@ -79,10 +79,19 @@ class APITests(unittest.TestCase):
         for path in expected:
             for operation in schema["paths"][path].values():
                 self.assertNotIn("501", operation["responses"])
+        self.assertCountEqual(
+            schema["paths"]["/v1/functions/{function_id}/run"]["post"]["security"],
+            [{"APIKey": []}, {"Session": []}],
+        )
+        self.assertCountEqual(
+            schema["paths"]["/v1/run/{function_name}"]["post"]["security"],
+            [{"APIKey": []}, {"Session": []}, {}],
+        )
+        self.assertFalse(schema["paths"]["/health"]["get"].get("security"))
         self.assertEqual(self.client.get("/docs").status_code, 200)
         self.assertEqual(self.client.get("/health").json(), {"status": "ok"})
 
-    def test_uuid_execution_and_name_alias_share_current_revision_and_access_rules(
+    def test_uuid_execution_and_name_alias_share_current_revision(
         self,
     ):
         function = self.function()
@@ -192,7 +201,8 @@ class APITests(unittest.TestCase):
                 self.client.post(path, params={"wait": "false"}, json={}).status_code,
                 401,
             )
-            self.assertEqual(self.client.post(path, json={}).status_code, 200)
+        self.assertEqual(self.client.post(endpoint, json={}).status_code, 401)
+        self.assertEqual(self.client.post("/v1/run/greet", json={}).status_code, 200)
 
     def test_function_name_search_is_case_insensitive_and_treats_underscores_literally(
         self,

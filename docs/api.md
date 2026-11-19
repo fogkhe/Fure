@@ -2,6 +2,8 @@
 
 The API contract is available in Swagger UI at `/docs`, ReDoc at `/redoc`,
 and OpenAPI at `/openapi.json`.
+The workspace footer opens Swagger UI at `/api/docs` through the Nuxt proxy.
+Swagger uses `/api` as its base URL there.
 
 Routes are backed by SQLAlchemy repositories and application services. `/health`
 checks database connectivity and returns `200` with `{"status": "ok"}`. An unavailable
@@ -26,7 +28,7 @@ and return 404 when addressed directly. Manage the selection with
 | PATCH | `/v1/functions/{function_id}` | Change name, description, enabled/public flags or current revision |
 | DELETE | `/v1/functions/{function_id}` | Soft-delete a function, retaining history |
 | POST | `/v1/functions/{function_id}/undelete` | Clear the deletion marker |
-| POST | `/v1/functions/{function_id}/run` | Execute the current revision; `wait=false` returns the run immediately |
+| POST | `/v1/functions/{function_id}/run` | Execute the current revision by UUID with authentication |
 | GET | `/v1/revisions` | List revisions; filter by `function_id` |
 | POST | `/v1/revisions` | Create an immutable implementation version |
 | GET | `/v1/variables` | List shared variables and visible values |
@@ -39,8 +41,9 @@ and return 404 when addressed directly. Manage the selection with
 | POST | `/v1/runs/{run_id}/cancel` | Cancel a pending or running execution |
 | POST | `/v1/run/{function_name}` | Name-based alias of `/v1/functions/{function_id}/run` |
 
-The canonical execution route uses the immutable function UUID. The name-based
-alias resolves the current function name and has identical parameters and permissions.
+The canonical execution route uses the immutable function UUID and always requires
+authentication. The name-based alias resolves the current function name and allows
+anonymous synchronous execution of public functions.
 List responses have `items`, `total`, `page` and `size`. Pages are zero-based;
 `page=0` and `size=100` are the defaults, with a maximum size of 1000.
 Lists are ordered newest first. Function lists exclude deleted functions by

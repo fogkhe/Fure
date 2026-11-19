@@ -26,17 +26,6 @@ async function logout() {
     toast.add({ title: t('ui.couldNotSignOut'), description: errorMessage(problem), color: 'error' })
   }
 }
-const { data: health, error, refresh } = await useAsyncData('api-health', () => $fetch<{
-  status: string
-}>('/api/health', { retry: 0 }), { server: false })
-let timer: ReturnType<typeof setInterval> | undefined
-onMounted(() => {
-  timer = setInterval(() => {
-    if (document.visibilityState === 'visible')
-      refresh()
-  }, 15000)
-})
-onUnmounted(() => clearInterval(timer))
 </script>
 
 <template>
@@ -55,6 +44,10 @@ onUnmounted(() => clearInterval(timer))
       </template>
       <UNavigationMenu :items="items" />
       <template #right>
+        <UColorModeButton
+          size="sm"
+          :aria-label="t('ui.switchTheme')"
+        />
         <UButton
           v-if="auth.session.value"
           to="/account"
@@ -92,27 +85,13 @@ onUnmounted(() => clearInterval(timer))
     >
       <template #left>
         <LanguageSelect />
-        <UColorModeButton
-          size="sm"
-          :aria-label="t('ui.switchTheme')"
-        />
       </template>
       <template #right>
-        <UTooltip :text="error ? t('ui.checkApiConnection') : t('ui.connectionToFureApi')">
-          <UButton
-            :label="error ? t('ui.apiUnavailable') : health ? t('ui.apiConnected') : t('ui.connecting')"
-            :color="error ? 'error' : health ? 'primary' : 'neutral'"
-            variant="ghost"
-            size="xs"
-            icon="i-lucide-circle"
-            @click="refresh()"
-          />
-        </UTooltip>
         <UButton
-          to="/api/openapi.json"
+          to="/api/docs"
           external
           target="_blank"
-          label="OpenAPI"
+          label="Swagger UI"
           trailing-icon="i-lucide-arrow-up-right"
           size="xs"
           color="neutral"

@@ -15,6 +15,7 @@ router = APIRouter()
     summary="Run a function by name (alias)",
     response_model=RunResponse,
     responses=RUN_RESPONSES,
+    openapi_extra={"security": [{}]},
 )
 async def run_function(
     function_name: Annotated[FunctionName, Path(examples=["greet"])],
@@ -26,8 +27,9 @@ async def run_function(
 ) -> RunResponse | Response:
     """Alias of POST /v1/functions/{function_id}/run, resolving the current name.
 
-    Both routes execute the current revision with the same permissions. By default
-    they wait for the result; wait=false returns 202 with the persisted run.
+    Public functions can be run anonymously with wait=true. With wait=false,
+    authentication and runs.read are required, and the persisted run is returned
+    with status 202.
     """
     return await execute_function(
         function_name, request, service, response, principal, wait=wait

@@ -103,9 +103,9 @@ functions to pre-existing keys after migration.
 ## Public functions and history
 
 Functions default to `public=false`. An authorized publisher can set `public=true`
-using function creation/update. This permits anonymous `POST /v1/functions/{id}/run`
-or `POST /v1/run/{name}` calls
-to the enabled function's current revision. Source, settings and execution history
+using function creation/update. This permits anonymous `POST /v1/run/{name}` calls
+to the enabled function's current revision. `POST /v1/functions/{id}/run` always
+requires authentication. Source, settings and execution history
 remain protected. Public functions do not appear in an anonymous catalogue.
 Rate/concurrency limiting is delegated to the external reverse proxy.
 Both execution routes default to waiting for the result. `wait=false` requires

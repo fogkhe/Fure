@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -30,12 +31,22 @@ logger = logging.getLogger(__name__)
 
 
 def create_app(configuration: Settings | None = None) -> FastAPI:
-    application = FastAPI(title="Fure", version="0.1.0", lifespan=lifespan)
+    application = FastAPI(
+        title="Fure", version="0.1.0", lifespan=lifespan, docs_url=None
+    )
     application.state.settings = (
         configuration if configuration is not None else settings
     )
     application.include_router(v1.router, prefix="/v1")
     application.include_router(health.router)
+
+    @application.get("/docs", include_in_schema=False)
+    async def swagger_ui():
+        return get_swagger_ui_html(
+            openapi_url="./openapi.json",
+            title=f"{application.title} - Swagger UI",
+        )
+
     application.state.mcp_http_app = create_mcp_app(application)
     application.mount("/mcp", application.state.mcp_http_app)
 

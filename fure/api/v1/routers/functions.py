@@ -6,7 +6,6 @@ from fastapi import APIRouter, Body, Depends, Path, Query, Response, status
 from fure.api.dependencies import (
     ExecutionServiceDep,
     FunctionServiceDep,
-    OptionalPrincipalDep,
     PrincipalDep,
     require_permission,
 )
@@ -153,13 +152,14 @@ async def run_function(
     request: Annotated[RunRequest, Body(examples=[{"input": {"name": "world"}}])],
     service: ExecutionServiceDep,
     response: Response,
-    principal: OptionalPrincipalDep,
+    principal: PrincipalDep,
     wait: WaitForRun = True,
 ) -> RunResponse | Response:
-    """Execute the current revision and record the run. Public functions allow anonymous execution.
+    """Execute the current revision by UUID and record the run.
 
-    Return output, metadata and duration in seconds. With wait=false, return 202
-    with the persisted run immediately; authentication and runs.read are required.
+    Authentication is required for all functions, including public ones. Return
+    output, metadata and duration in seconds. With wait=false, return 202 with
+    the persisted run immediately; runs.read is required.
     Poll /v1/runs/{run_id} for the result or POST its /cancel route to cancel it.
     """
     return await execute_function(
