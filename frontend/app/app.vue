@@ -44,10 +44,7 @@ async function logout() {
       </template>
       <UNavigationMenu :items="items" />
       <template #right>
-        <UColorModeButton
-          size="sm"
-          :aria-label="t('ui.switchTheme')"
-        />
+        <ThemeToggle />
         <UButton
           v-if="auth.session.value"
           to="/account"

@@ -278,7 +278,7 @@ test('Jinja editor derives input schema and stores structured output options', a
 
 test('mobile layout, theme and recoverable API errors', async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.emulateMedia({ colorScheme: 'light' })
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' })
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
@@ -291,9 +291,24 @@ test('mobile layout, theme and recoverable API errors', async ({ page }, info) =
   const schema = await (await page.request.get('/api/openapi.json')).json()
   expect(schema.servers).toEqual([{ url: '/api' }])
   expect((await page.request.get(`${schema.servers[0].url}/v1/functions?size=1`)).ok()).toBeTruthy()
-  await page.getByRole('banner').getByRole('button', { name: 'Переключить тему', exact: true }).click()
+  const theme = page.getByRole('banner').getByRole('button', { name: 'Переключить тему', exact: true })
+  await page.evaluate(() => {
+    document.addEventListener('animationstart', (event) => {
+      if (event.pseudoElement === '::view-transition-new(root)' && event.animationName === 'reveal-theme')
+        document.documentElement.dataset.themeAnimationSeen = 'true'
+    })
+  })
+  await theme.click()
   await expect(page.locator('html')).toHaveClass(/dark/)
+  if (await page.evaluate(() => typeof document.startViewTransition === 'function')) {
+    await expect(page.locator('html')).toHaveAttribute('data-theme-animation-seen', 'true')
+  }
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme-reveal')
   await page.screenshot({ path: info.outputPath('functions-dark.png'), fullPage: true })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await theme.press('Enter')
+  await expect(page.locator('html')).toHaveClass(/light/)
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme-reveal')
   await page.route('**/api/v1/functions?**', route => route.abort('connectionrefused'))
   await page.reload()
   await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toBeVisible()
