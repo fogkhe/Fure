@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from uuid import UUID
 
 from fure.core.function import Function
 from fure.core.implementations import JinjaImplementation, PythonImplementation
@@ -46,7 +47,9 @@ def implementation_from_data(data: dict) -> BaseImplementation:
 
 def options_to_data(options: BaseRunnerOptions) -> dict:
     if isinstance(options, OpenAIJinjaRunnerOptions):
-        return {"type": "openai_jinja", **asdict(options)}
+        data = asdict(options)
+        data["tool_function_ids"] = [str(id) for id in options.tool_function_ids]
+        return {"type": "openai_jinja", **data}
     if isinstance(options, BasePythonRunnerOptions):
         return {"type": "inline_python", "timeout": options.timeout}
     raise TypeError("Unsupported runner options type")
@@ -55,6 +58,9 @@ def options_to_data(options: BaseRunnerOptions) -> dict:
 def options_from_data(data: dict) -> BaseRunnerOptions:
     fields = {key: value for key, value in data.items() if key != "type"}
     if data["type"] == "openai_jinja":
+        fields["tool_function_ids"] = tuple(
+            map(UUID, fields.get("tool_function_ids", ()))
+        )
         return OpenAIJinjaRunnerOptions(**fields)
     if data["type"] == "inline_python":
         return InlinePythonRunnerOptions(**fields)
@@ -126,6 +132,8 @@ def run_from_row(row: RunRow) -> Run:
         revision=revision_from_row(row.revision),
         user_id=row.user_id,
         api_key_id=row.api_key_id,
+        parent_run_id=row.parent_run_id,
+        tool_call_index=row.tool_call_index,
         input=row.input,
         status=RunStatus(row.status),
         output=row.output,

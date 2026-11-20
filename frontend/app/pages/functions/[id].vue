@@ -17,7 +17,7 @@ watch(record, (value) => {
     names.value[value.id] = value.name
 })
 const tabs = computed(() => [
-  ...(auth.can('functions.run') || record.value?.public ? [{ label: t('ui.run2'), value: 'run', icon: 'i-lucide-play' }] : []),
+  ...(auth.can('functions.run') || (record.value?.public && !record.value.uses_tools) ? [{ label: t('ui.run2'), value: 'run', icon: 'i-lucide-play' }] : []),
   { label: t('ui.versions'), value: 'revisions', icon: 'i-lucide-git-branch' },
   ...(auth.can('runs.read') ? [{ label: t('ui.history'), value: 'history', icon: 'i-lucide-history' }] : []),
   ...(auth.can('functions.update') || auth.can('functions.delete') ? [{ label: t('ui.settings'), value: 'settings', icon: 'i-lucide-settings-2' }] : [])

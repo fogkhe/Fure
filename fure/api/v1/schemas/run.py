@@ -27,6 +27,7 @@ class RunListRequest(PaginationRequest):
     function_id: UUID | None = None
     revision_id: UUID | None = None
     status: RunStatus | None = None
+    parent_run_id: UUID | None = None
 
 
 class RunDetailResponse(BaseModel):
@@ -35,6 +36,9 @@ class RunDetailResponse(BaseModel):
     revision_id: UUID
     user_id: UUID | None
     api_key_id: UUID | None
+    parent_run_id: UUID | None
+    tool_call_index: int | None
+    uses_tools: bool
     input: dict[str, JsonValue] | None
     status: RunStatus
     output: JsonValue

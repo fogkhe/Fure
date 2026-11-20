@@ -28,6 +28,9 @@ const state = reactive({
   outputSchema: '{}',
   structuredOutputs: true,
   reasoningEndTags: [] as string[],
+  toolFunctionIds: [] as string[],
+  maxSteps: '8',
+  maxToolCalls: '16',
   activate: true
 })
 const saving = ref(false)
@@ -94,11 +97,18 @@ watch(open, (value) => {
   state.model = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.model : ''
   state.structuredOutputs = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options.structured_outputs : true
   state.reasoningEndTags = initial?.runner_options.type === 'openai_jinja' ? [...initial.runner_options.reasoning_end_tags] : []
+  const options = initial?.runner_options.type === 'openai_jinja' ? initial.runner_options : null
+  state.toolFunctionIds = [...(options?.tool_function_ids ?? [])]
+  state.maxSteps = options ? String(options.max_steps ?? '') : '8'
+  state.maxToolCalls = options ? String(options.max_tool_calls ?? '') : '16'
   state.apiKey = ''
   state.activate = true
   created.value = null
   error.value = ''
 }, { immediate: true })
+function optionalNumber(value: string | number | null | undefined) {
+  return String(value ?? '').trim() === '' ? null : Number(value)
+}
 function validate(): FormError[] {
   if (created.value)
     return []
@@ -108,6 +118,12 @@ function validate(): FormError[] {
   if (state.kind === 'python' && !state.code.trim())
     errors.push({ name: 'code', message: t('ui.addTheFunctionCode') })
   if (state.kind === 'jinja') {
+    const steps = optionalNumber(state.maxSteps)
+    const calls = optionalNumber(state.maxToolCalls)
+    if (steps !== null && (!Number.isSafeInteger(steps) || steps < 1))
+      errors.push({ name: 'maxSteps', message: t('agent.positiveInteger') })
+    if (calls !== null && (!Number.isSafeInteger(calls) || calls < 0))
+      errors.push({ name: 'maxToolCalls', message: t('agent.nonNegativeInteger') })
     if (!state.model.trim())
       errors.push({ name: 'model', message: t('ui.specifyAModel') })
     try {
@@ -138,7 +154,22 @@ async function save() {
       const timeout = state.timeout === '' ? null : Number(state.timeout)
       const body = state.kind === 'python'
         ? { function_id: props.functionId, implementation: { type: 'python', code: state.code }, runner_options: { type: 'inline_python', timeout } }
-        : { function_id: props.functionId, implementation: { type: 'jinja', template: state.template, output_schema: getOutputSchema() }, runner_options: { type: 'openai_jinja', timeout, base_url: state.baseUrl, model: state.model, api_key: state.apiKey || null, structured_outputs: state.structuredOutputs, reasoning_end_tags: state.reasoningEndTags.filter(tag => tag.trim()) } }
+        : {
+            function_id: props.functionId,
+            implementation: { type: 'jinja', template: state.template, output_schema: getOutputSchema() },
+            runner_options: {
+              type: 'openai_jinja',
+              timeout,
+              base_url: state.baseUrl,
+              model: state.model,
+              api_key: state.apiKey || null,
+              structured_outputs: state.structuredOutputs,
+              reasoning_end_tags: state.reasoningEndTags.filter(tag => tag.trim()),
+              tool_function_ids: state.toolFunctionIds,
+              max_steps: optionalNumber(state.maxSteps),
+              max_tool_calls: optionalNumber(state.maxToolCalls)
+            }
+          }
       created.value = await api<RevisionRecord>('/revisions', { method: 'POST', body })
       state.apiKey = ''
       emit('created', created.value)
@@ -358,6 +389,63 @@ async function save() {
               />
             </div>
           </UFormField>
+          <UFormField
+            :label="t('agent.tools')"
+            :description="t('agent.toolsDescription')"
+            name="toolFunctionIds"
+          >
+            <UCollapsible class="space-y-3">
+              <UButton
+                type="button"
+                :label="t('agent.chooseTools', { count: state.toolFunctionIds.length })"
+                trailing-icon="i-lucide-chevron-down"
+                color="neutral"
+                variant="outline"
+              />
+              <template #content>
+                <FunctionSelect
+                  v-model="state.toolFunctionIds"
+                  :exclude="props.functionId"
+                  :disabled="saving || !!created"
+                />
+              </template>
+            </UCollapsible>
+          </UFormField>
+          <div
+            v-if="state.toolFunctionIds.length"
+            class="grid gap-4 sm:grid-cols-2"
+          >
+            <UFormField
+              :label="t('agent.maxSteps')"
+              :description="t('agent.stepLimitDescription')"
+              name="maxSteps"
+            >
+              <UInput
+                v-model="state.maxSteps"
+                type="number"
+                :min="1"
+                step="1"
+                :placeholder="t('agent.unlimited')"
+                :disabled="saving || !!created"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField
+              :label="t('agent.maxToolCalls')"
+              :description="t('agent.callLimitDescription')"
+              name="maxToolCalls"
+            >
+              <UInput
+                v-model="state.maxToolCalls"
+                type="number"
+                :min="0"
+                step="1"
+                :placeholder="t('agent.unlimited')"
+                :disabled="saving || !!created"
+                class="w-full"
+              />
+            </UFormField>
+          </div>
         </template>
         <UFormField
           :label="t('ui.timeoutSeconds')"

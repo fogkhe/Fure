@@ -1,4 +1,21 @@
 {
+  "agent": {
+    "tools": "Tools",
+    "toolsDescription": "The model can call selected Fure functions within the caller’s permissions. Versions with tools require authentication.",
+    "chooseTools": "Choose tools ({count})",
+    "removeTool": "Remove {name}",
+    "maxSteps": "Maximum model steps",
+    "maxToolCalls": "Maximum tool calls",
+    "unlimited": "Unlimited",
+    "stepLimitDescription": "Counts every model request, including the final response. Leave blank for no limit.",
+    "callLimitDescription": "Counts each tool call, including calls in the same batch. Leave blank for no limit.",
+    "positiveInteger": "Enter a whole number greater than zero.",
+    "nonNegativeInteger": "Enter a whole number greater than or equal to zero.",
+    "toolCalls": "Tool calls",
+    "callOrder": "Call",
+    "parentRun": "Parent run",
+    "requiresAuthentication": "The current version uses tools and requires authentication and the functions.run permission."
+  },
   "ui": {
     "functionsImplementationVersionsAndRunHistoryInOnePlace": "Functions, implementation versions and run history in one place.",
     "functions": "Functions",
@@ -320,6 +337,10 @@
     }
   },
   "errors": {
+    "agentStepLimit": "The agent reached the step limit.",
+    "agentToolCallLimit": "The agent reached the tool call limit.",
+    "toolFunctionNotFound": "A selected tool is missing or has been deleted.",
+    "recursiveTool": "A function cannot be its own tool.",
     "invalidInputOrVariables": "Function input or variables are invalid",
     "variablesUnavailable": "Shared variables are unavailable",
     "variableEncryptionMissing": "Secret variable encryption is not configured",

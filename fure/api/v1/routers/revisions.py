@@ -84,6 +84,9 @@ async def create_revision(
             model=options.model,
             structured_outputs=options.structured_outputs,
             reasoning_end_tags=tuple(options.reasoning_end_tags),
+            tool_function_ids=tuple(options.tool_function_ids),
+            max_steps=options.max_steps,
+            max_tool_calls=options.max_tool_calls,
         )
     return revision_response(
         await service.create(

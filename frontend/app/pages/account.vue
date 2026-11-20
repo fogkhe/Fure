@@ -385,7 +385,7 @@ function keyStatus(item: APIKeyRecord) {
             :label="t('ui.availableFunctions')"
             name="function_ids"
           >
-            <KeyFunctionSelect v-model="key.function_ids" />
+            <FunctionSelect v-model="key.function_ids" />
           </UFormField>
           <UButton
             type="submit"
@@ -414,7 +414,7 @@ function keyStatus(item: APIKeyRecord) {
             :description="editError"
             color="error"
           />
-          <KeyFunctionSelect v-model="editFunctions" />
+          <FunctionSelect v-model="editFunctions" />
           <UButton
             type="submit"
             :label="t('ui.saveFunctions')"

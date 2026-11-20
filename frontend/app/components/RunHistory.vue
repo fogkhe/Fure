@@ -7,6 +7,7 @@ const { t } = useI18n()
 const props = defineProps<{
   functionId?: string
   revisionId?: string
+  parentRunId?: string
 }>()
 const api = useApi()
 const auth = useAuth()
@@ -23,10 +24,10 @@ const cancelOpen = computed({ get: () => !!target.value, set: (open: boolean) =>
 const names = useState<Record<string, string>>('function-names', () => ({}))
 const loadingNames = new Set<string>()
 const statuses = computed(() => ([{ label: t('ui.allStatuses'), value: 'all' }, { label: t('ui.pending'), value: 'pending' }, { label: t('ui.running'), value: 'running' }, { label: t('ui.succeeded'), value: 'succeeded' }, { label: t('ui.failed'), value: 'failed' }, { label: t('ui.cancelled'), value: 'cancelled' }]))
-const query = computed(() => ({ page: page.value - 1, size: 15, function_id: props.functionId, revision_id: props.revisionId, status: filter.value === 'all' ? undefined : filter.value as RunStatus }))
-const key = computed(() => `runs-${props.functionId || 'all'}-${props.revisionId || 'all'}`)
+const query = computed(() => ({ page: page.value - 1, size: 15, function_id: props.functionId, revision_id: props.revisionId, parent_run_id: props.parentRunId, status: filter.value === 'all' ? undefined : filter.value as RunStatus }))
+const key = computed(() => props.parentRunId ? `tool-runs-${props.parentRunId}` : `runs-${props.functionId || 'all'}-${props.revisionId || 'all'}`)
 const { data, error, status, refresh } = await useAsyncData(key, () => api<Page<RunRecord>>('/runs', { query: query.value }), { server: false, watch: [query] })
-watch([filter, () => props.functionId, () => props.revisionId], () => {
+watch([filter, () => props.functionId, () => props.revisionId, () => props.parentRunId], () => {
   page.value = 1
 })
 watch(data, async (value) => {
@@ -65,7 +66,10 @@ async function cancel() {
     cancelling.value = false
   }
 }
-const columns = computed(() => ([{ accessorKey: 'id', header: t('ui.run') }, { accessorKey: 'function_id', header: t('ui.function') }, { accessorKey: 'status', header: t('ui.status') }, { accessorKey: 'duration', header: t('ui.duration') }, { accessorKey: 'created_at', header: t('ui.created') }, { id: 'actions' }]))
+const columns = computed(() => ([
+  ...(props.parentRunId ? [{ accessorKey: 'tool_call_index', header: t('agent.callOrder') }] : []),
+  { accessorKey: 'id', header: t('ui.run') }, { accessorKey: 'function_id', header: t('ui.function') }, { accessorKey: 'status', header: t('ui.status') }, { accessorKey: 'duration', header: t('ui.duration') }, { accessorKey: 'created_at', header: t('ui.created') }, { id: 'actions' }
+]))
 </script>
 
 <template>

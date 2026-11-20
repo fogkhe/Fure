@@ -27,7 +27,7 @@ async def run_function(
 ) -> RunResponse | Response:
     """Alias of POST /v1/functions/{function_id}/run, resolving the current name.
 
-    Public functions can be run anonymously with wait=true. With wait=false,
+    Public functions without tools can be run anonymously with wait=true. With wait=false,
     authentication and runs.read are required, and the persisted run is returned
     with status 202.
     """

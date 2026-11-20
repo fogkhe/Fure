@@ -11,7 +11,7 @@ database returns `503`.
 
 All catalogue/history operations require authentication and permissions.
 Use a browser session or `Authorization: Bearer <API key>`. Only functions marked
-`public` can run anonymously. See [users, roles and API keys](auth.md) for setup,
+`public` with a current revision that has no tools can run anonymously. See [users, roles and API keys](auth.md) for setup,
 management endpoints, scopes and CSRF headers. Read examples below assume an
 administrator session or a key with the corresponding permissions.
 
@@ -36,20 +36,50 @@ and return 404 when addressed directly. Manage the selection with
 | PATCH | `/v1/variables/{name}` | Replace a variable's value |
 | DELETE | `/v1/variables/{name}` | Delete a shared variable |
 | GET | `/v1/revisions/{revision_id}` | Get implementation source, schemas and public runner settings |
-| GET | `/v1/runs` | List execution history; filter by `function_id`, `revision_id`, `status` |
+| GET | `/v1/runs` | List execution history; filter by `function_id`, `revision_id`, `status`, `parent_run_id` |
 | GET | `/v1/runs/{run_id}` | Get execution input, output, metadata, status and timestamps |
 | POST | `/v1/runs/{run_id}/cancel` | Cancel a pending or running execution |
 | POST | `/v1/run/{function_name}` | Name-based alias of `/v1/functions/{function_id}/run` |
 
 The canonical execution route uses the immutable function UUID and always requires
 authentication. The name-based alias resolves the current function name and allows
-anonymous synchronous execution of public functions.
+anonymous synchronous execution of public functions whose current revision has no tools.
 List responses have `items`, `total`, `page` and `size`. Pages are zero-based;
 `page=0` and `size=100` are the defaults, with a maximum size of 1000.
 Lists are ordered newest first. Function lists exclude deleted functions by
 default; `deleted=true` selects deleted functions.
 The function list's `name` filter matches a literal substring regardless of case.
 For example, `name=reet` finds `greet` and `GREETING`.
+
+## Agent runs
+
+In a Jinja OpenAI revision, add `tool_function_ids` to `runner_options` to give
+the model a selection of Fure functions. In the workspace, choose them in the
+revision editor under **Tools**. The model and provider must support native Chat
+Completions tool calling. The runner sends each available function's name,
+description and input schema and validates the arguments locally before execution.
+The active revisions are resolved when each agent starts and reused for the
+duration of that agent run. Nested agents work as tools. A branch cannot invoke
+a function already on that branch.
+
+Launching a version with tools requires authentication and `functions.run`.
+An API key can only expose tools within its function selection. Disabled and
+deleted functions drop out of tool discovery, and their status is checked again
+at execution. A tool's result or an error code goes back to the model.
+
+Calls in the same model response execute in parallel. `max_steps` defaults to
+8 and counts model requests including the final response. `max_tool_calls`
+defaults to 16 and counts individual requests, including calls in the same
+batch and invalid calls. Both settings apply per agent run and accept `null`
+for no limit. A batch that would exceed a limit fails before execution with
+`agent_limit_exceeded`. The runner timeout covers the whole agent run and
+cancellation propagates to active descendants.
+
+The REST result is the final text or JSON. Token counts cover all model
+requests made directly by that agent. Each executed tool has a run record with
+its own revision, status, output and metadata. Query
+`GET /v1/runs?parent_run_id={run_id}` for direct tool runs in `tool_call_index`
+order. History uses the existing owner, permission and API-key scope checks.
 
 ## Shared variables
 
@@ -176,7 +206,7 @@ Cancel through `POST /v1/runs/{id}/cancel`, with the same permissions and termin
 state protection as history cancellation. In the workspace, users with history
 access use this mode, and the Run button becomes Cancel when they also have
 `runs.cancel`. Users without history access retain synchronous execution.
-The default remains `wait=true`, including for anonymous public calls.
+The default remains `wait=true`, including for eligible anonymous public calls.
 
 ## Status codes
 

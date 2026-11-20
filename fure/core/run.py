@@ -52,9 +52,11 @@ class Run:
         "_input",
         "_meta",
         "_output",
+        "_parent_run_id",
         "_revision",
         "_started_at",
         "_status",
+        "_tool_call_index",
         "_updated_at",
         "_user_id",
     )
@@ -67,6 +69,8 @@ class Run:
         id: UUID | None = None,
         user_id: UUID | None = None,
         api_key_id: UUID | None = None,
+        parent_run_id: UUID | None = None,
+        tool_call_index: int | None = None,
         status: RunStatus | None = None,
         output: JSONValue | None = None,
         meta: BaseRunMeta | None = None,
@@ -76,9 +80,17 @@ class Run:
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
+        if parent_run_id is None and tool_call_index is not None:
+            raise ValueError("A tool call index requires a parent run")
+        if parent_run_id is not None and (
+            tool_call_index is None or tool_call_index < 1
+        ):
+            raise ValueError("A child run requires a positive tool call index")
         self._id = id if id is not None else uuid7()
         self._user_id = user_id
         self._api_key_id = api_key_id
+        self._parent_run_id = parent_run_id
+        self._tool_call_index = tool_call_index
         self._revision = revision
         self._input = deepcopy(input) if input is not None else None
         self._status = status if status is not None else RunStatus.PENDING
@@ -117,11 +129,15 @@ class Run:
         updated_at: datetime,
         user_id: UUID | None = None,
         api_key_id: UUID | None = None,
+        parent_run_id: UUID | None = None,
+        tool_call_index: int | None = None,
     ) -> Self:
         run = cls.__new__(cls)
         run._id = id
         run._user_id = user_id
         run._api_key_id = api_key_id
+        run._parent_run_id = parent_run_id
+        run._tool_call_index = tool_call_index
         run._revision = revision
         run._input = deepcopy(input)
         run._status = status
@@ -145,6 +161,14 @@ class Run:
     @property
     def api_key_id(self) -> UUID | None:
         return self._api_key_id
+
+    @property
+    def parent_run_id(self) -> UUID | None:
+        return self._parent_run_id
+
+    @property
+    def tool_call_index(self) -> int | None:
+        return self._tool_call_index
 
     @property
     def revision(self) -> Revision:

@@ -1,5 +1,13 @@
 from fure.api.v1.schemas import FunctionResponse, RevisionResponse, RunDetailResponse
+from fure.core.runners.jinja.openai import OpenAIJinjaRunnerOptions
 from fure.database.mappers import implementation_to_data, options_to_data
+
+
+def uses_tools(revision):
+    options = revision.runner_options if revision else None
+    return isinstance(options, OpenAIJinjaRunnerOptions) and bool(
+        options.tool_function_ids
+    )
 
 
 def function_response(function):
@@ -12,6 +20,7 @@ def function_response(function):
         public=function.public,
         deleted=function.deleted,
         runnable=function.runnable,
+        uses_tools=uses_tools(function.revision),
         input_schema=function.input_schema,
         output_schema=function.output_schema,
         created_at=function.created_at,
@@ -39,6 +48,9 @@ def run_response(run):
         revision_id=run.revision.id,
         user_id=run.user_id,
         api_key_id=run.api_key_id,
+        parent_run_id=run.parent_run_id,
+        tool_call_index=run.tool_call_index,
+        uses_tools=uses_tools(run.revision),
         input=run.input,
         status=run.status,
         output=run.output,

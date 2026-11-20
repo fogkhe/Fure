@@ -48,8 +48,10 @@ at module import time.
   discriminator. Credentials are persisted with runner settings and removed by
   API presenters before response serialization.
 - `runs`: immutable revision reference, input/output, typed metadata, status and
-  timestamps, caller user/API-key references. Worker identity and heartbeat support cross-worker cancellation and
-  recovery. Check constraints restrict statuses and reject negative durations.
+  timestamps, caller user/API-key references. Tool runs reference their parent
+  run and store their call position. Worker identity and heartbeat support
+  cross-worker cancellation and recovery. Check constraints restrict statuses
+  and reject negative durations.
 - `users`, `roles`, `user_roles`: accounts and role membership; permissions come
   from a fixed catalogue and are combined at request time.
 - `sessions`, `api_keys`: hashed credentials, expiration and revocation state.

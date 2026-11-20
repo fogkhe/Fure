@@ -1,5 +1,6 @@
 import { expect, test, login, password } from './fixtures'
 import type { APIRequestContext, Page } from '@playwright/test'
+import { createServer } from 'node:http'
 
 const python = 'from pydantic import BaseModel\n\nclass Input(BaseModel):\n    name: str\n\nasync def function(input: Input) -> str:\n    return f"Hello, {input.name}!"\n'
 
@@ -274,6 +275,61 @@ test('Jinja editor derives input schema and stores structured output options', a
   await expect(page.getByLabel('API ключ', { exact: true })).toHaveValue('')
   await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('test-model')
   await expect(item.getByLabel('Имя поля', { exact: true })).toHaveValue('greeting')
+})
+
+test('configure tools and follow their runs from an agent', async ({ page, request }) => {
+  const { record: tool } = await seed(request, 'tool_ui_lookup', 'async def function(input: None) -> str: return "tool-result"')
+  const created = await request.post('/api/v1/functions', { data: { name: 'agent_ui' } })
+  expect(created.ok()).toBeTruthy()
+  const agent = await created.json()
+  const provider = createServer(async (incoming, response) => {
+    const body = []
+    for await (const chunk of incoming) body.push(chunk)
+    const { messages } = JSON.parse(Buffer.concat(body).toString())
+    const done = messages.at(-1).role === 'tool'
+    const reply = done
+      ? { content: JSON.parse(messages.at(-1).content) }
+      : { tool_calls: [{ id: 'lookup', type: 'function', function: { name: tool.name, arguments: '{}' } }] }
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({ id: 'test', object: 'chat.completion', created: 0, model: 'test', choices: [{ index: 0, finish_reason: done ? 'stop' : 'tool_calls', message: { role: 'assistant', ...reply } }] }))
+  })
+  await new Promise<void>((resolve, reject) => provider.once('error', reject).listen(0, '127.0.0.1', resolve))
+  try {
+    const address = provider.address()
+    if (!address || typeof address === 'string') throw new Error('Test provider did not get a port')
+
+    await page.goto(`/functions/${agent.id}?tab=revisions`)
+    await page.getByRole('button', { name: 'Новая версия', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('combobox', { name: 'Реализация', exact: true }).click()
+    await page.getByRole('option', { name: 'Jinja · OpenAI', exact: true }).click()
+    await dialog.getByRole('textbox', { name: 'Jinja-шаблон' }).fill('Use the lookup tool.')
+    await dialog.getByLabel('Адрес API').fill(`http://127.0.0.1:${address.port}/v1`)
+    await dialog.getByLabel('Модель', { exact: true }).fill('test')
+    await dialog.getByRole('button', { name: 'Выбрать инструменты (0)', exact: true }).click()
+    await dialog.getByRole('checkbox', { name: tool.name, exact: true }).check()
+    await dialog.getByLabel('Максимум шагов модели', { exact: true }).fill('')
+    await dialog.getByLabel('Максимум вызовов инструментов', { exact: true }).fill('2')
+    const saved = page.waitForResponse(response => response.url().endsWith('/api/v1/revisions') && response.request().method() === 'POST')
+    await dialog.getByRole('button', { name: 'Сохранить версию' }).click()
+    const revision = await (await saved).json()
+    expect(revision.runner_options).toMatchObject({ tool_function_ids: [tool.id], max_steps: null, max_tool_calls: 2 })
+    await expect(dialog).not.toBeVisible()
+
+    const executed = await request.post(`/api/v1/functions/${agent.id}/run`, { data: {} })
+    expect(executed.ok()).toBeTruthy()
+    const runId = executed.headers()['x-run-id']
+    expect((await executed.json()).output).toBe('tool-result')
+    await page.goto(`/runs/${runId}`)
+    await expect(page.getByRole('heading', { name: 'Вызовы инструментов' })).toBeVisible()
+    const call = page.getByRole('row').filter({ hasText: tool.name })
+    await expect(call).toBeVisible()
+    await call.getByRole('link', { name: 'Открыть запуск' }).click()
+    await expect(page.getByRole('link', { name: runId, exact: true })).toHaveAttribute('href', `/runs/${runId}`)
+  } finally {
+    provider.closeAllConnections()
+    await new Promise<void>((resolve, reject) => provider.close(error => error ? reject(error) : resolve()))
+  }
 })
 
 test('mobile layout, theme and recoverable API errors', async ({ page }, info) => {

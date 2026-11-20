@@ -128,11 +128,11 @@ async function changeDeletion(restore = false) {
         <USwitch
           v-model="state.public"
           :label="t('ui.publicExecution')"
-          :description="t('ui.anyoneWhoKnowsTheFunctionNameCanRunIt')"
+          :description="t(record.uses_tools ? 'agent.requiresAuthentication' : 'ui.anyoneWhoKnowsTheFunctionNameCanRunIt')"
           :disabled="!auth.can('functions.publish') || !auth.can('functions.update') || record.deleted || saving"
         />
         <p
-          v-if="record.public"
+          v-if="record.public && !record.uses_tools"
           class="font-mono text-xs break-all text-muted"
         >
           POST /v1/run/{{ record.name }}

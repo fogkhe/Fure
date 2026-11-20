@@ -30,7 +30,7 @@ async def list_runs(
     request: Annotated[RunListRequest, Query()],
     service: RunServiceDep,
 ) -> PaginationResponse[RunDetailResponse]:
-    """List runs, newest first, optionally filtered by function, revision and status."""
+    """List runs, newest first. With parent_run_id, list tool runs in call order."""
     items, total = await service.list(**request.model_dump())
     return PaginationResponse(
         items=[run_response(item) for item in items],

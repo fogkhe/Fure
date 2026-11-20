@@ -3,7 +3,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from fure.core.function import Function
 from fure.core.revision import Revision
@@ -63,6 +63,15 @@ class FunctionRepository:
             return None
         self._versions[row.id] = row.version
         return function_from_row(row)
+
+    async def get_many(self, ids: tuple[UUID, ...]) -> list[Function]:
+        rows = await self.session.scalars(
+            select(FunctionRow)
+            .options(joinedload(FunctionRow.revision))
+            .where(FunctionRow.id.in_(ids), FunctionRow.deleted_at.is_(None))
+        )
+        by_id = {row.id: row for row in rows}
+        return [function_from_row(by_id[id]) for id in ids if id in by_id]
 
     async def list(
         self, *, page, size, name=None, enabled=None, deleted=False, function_ids=None
@@ -194,6 +203,7 @@ class RunRepository:
         status=None,
         user_id=None,
         function_ids=None,
+        parent_run_id=None,
     ):
         filters = []
         if function_ids is not None:
@@ -206,12 +216,19 @@ class RunRepository:
             filters.append(RunRow.revision_id == revision_id)
         if status is not None:
             filters.append(RunRow.status == status)
+        if parent_run_id is not None:
+            filters.append(RunRow.parent_run_id == parent_run_id)
+        ordering = (
+            (RunRow.tool_call_index, RunRow.id)
+            if parent_run_id is not None
+            else (RunRow.created_at.desc(), RunRow.id.desc())
+        )
         rows, total = await paginate(
             self.session,
             select(RunRow)
             .join(RevisionRow)
             .options(selectinload(RunRow.revision).selectinload(RevisionRow.function))
-            .order_by(RunRow.created_at.desc(), RunRow.id.desc()),
+            .order_by(*ordering),
             filters,
             page,
             size,
@@ -225,6 +242,8 @@ class RunRepository:
                 revision_id=run.revision.id,
                 user_id=run.user_id,
                 api_key_id=run.api_key_id,
+                parent_run_id=run.parent_run_id,
+                tool_call_index=run.tool_call_index,
                 input=run.input,
                 status=run.status.value,
                 output=run.output,
@@ -250,3 +269,19 @@ class RunRepository:
             .values(**values)
         )
         return result.rowcount == 1
+
+    async def cancel_descendants(self, id: UUID, **values) -> None:
+        # Cancel each level before reading the next. A child submission locks its parent
+        # before inserting, so a descendant cannot be registered behind this traversal.
+        parents = [id]
+        while parents:
+            changed = await self.session.scalars(
+                update(RunRow)
+                .where(
+                    RunRow.parent_run_id.in_(parents),
+                    RunRow.status.in_(ACTIVE_STATUSES),
+                )
+                .values(**values)
+                .returning(RunRow.id)
+            )
+            parents = list(changed)

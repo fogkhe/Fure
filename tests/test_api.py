@@ -1,22 +1,72 @@
+import asyncio
+import json
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import AsyncMock, patch
+from uuid import UUID
 
 import httpx2
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
-from openai import APIConnectionError
+from openai import APIConnectionError, AsyncOpenAI
 
 from fure.api.app import create_app
 from fure.core.implementations import PythonImplementation
 from fure.core.runners import OpenAIJinjaRunMeta, RunResult
+from fure.core.runners.python.inline import InlinePythonRunner
 from fure.database.models import VariableRow
+from fure.services.resources import FunctionService
 from fure.settings import Settings
 from tests.auth_support import bootstrap, login
 from tests.database_support import isolated_database
 
 MISSING_ID = "01900000-0000-7000-8000-000000000099"
+
+
+def tool_call(name, index, arguments="{}"):
+    return {
+        "id": f"call_{index}",
+        "type": "function",
+        "function": {"name": name, "arguments": arguments},
+    }
+
+
+def mock_chat(respond):
+    async def handle(request):
+        message = await respond(json.loads(request.content))
+        return httpx2.Response(
+            200,
+            json={
+                "id": "chatcmpl-agent",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "test",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "tool_calls"
+                        if "tool_calls" in message
+                        else "stop",
+                        "message": {"role": "assistant", **message},
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 4,
+                    "completion_tokens": 2,
+                    "total_tokens": 6,
+                },
+            },
+        )
+
+    def client(**kwargs):
+        return AsyncOpenAI(
+            **kwargs,
+            max_retries=0,
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handle)),
+        )
+
+    return patch("fure.core.runners.jinja.openai.AsyncOpenAI", side_effect=client)
 
 
 class APITests(unittest.TestCase):
@@ -573,6 +623,230 @@ class APITests(unittest.TestCase):
             self.assertEqual(failure.status_code, 502)
             self.assertNotIn("private-key", failure.text)
         self.assertEqual(self.client.get("/v1/runs?status=failed").json()["total"], 1)
+
+    def agent_revision(self, function, tools, *, output_schema=None, **options):
+        response = self.client.post(
+            "/v1/revisions",
+            json={
+                "function_id": function["id"],
+                "implementation": {
+                    "type": "jinja",
+                    "template": function["name"],
+                    "output_schema": output_schema or {},
+                },
+                "runner_options": {
+                    "type": "openai_jinja",
+                    "model": "test",
+                    "base_url": "http://provider.test/v1",
+                    "timeout": 10,
+                    "tool_function_ids": [tool["id"] for tool in tools],
+                    **options,
+                },
+            },
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        revision = response.json()
+        activated = self.client.patch(
+            f"/v1/functions/{function['id']}", json={"revision_id": revision["id"]}
+        )
+        self.assertEqual(activated.status_code, 200, activated.text)
+        return revision
+
+    def tool_runs(self, run_id):
+        response = self.client.get("/v1/runs", params={"parent_run_id": run_id})
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()["items"]
+
+    def test_agent_calls_tools_in_parallel_using_the_revision_at_start(self):
+        agent = self.function("agent")
+        tool = self.function("lookup", description="Look up data")
+        original = self.revision(
+            tool["id"], "async def function(input: None) -> str: return 'original'"
+        )
+        replacement = self.revision(tool["id"], activate=False)
+        schema = {
+            "type": "object",
+            "properties": {"done": {"type": "boolean"}},
+            "required": ["done"],
+            "additionalProperties": False,
+        }
+        revision = self.agent_revision(
+            agent, [tool], output_schema=schema, max_steps=None, max_tool_calls=None
+        )
+        self.assertIsNone(revision["runner_options"]["max_steps"])
+        self.assertIsNone(revision["runner_options"]["max_tool_calls"])
+        both_called = asyncio.Event()
+        entered = 0
+        run_python = InlinePythonRunner.run
+
+        async def parallel(runner, *args, **kwargs):
+            nonlocal entered
+            entered += 1
+            if entered == 2:
+                both_called.set()
+            await asyncio.wait_for(both_called.wait(), timeout=5)
+            return await run_python(runner, *args, **kwargs)
+
+        async def respond(payload):
+            self.assertEqual(
+                payload["response_format"]["json_schema"]["schema"], schema
+            )
+            messages = payload["messages"]
+            if messages[-1]["role"] == "user":
+                definition = payload["tools"][0]["function"]
+                self.assertEqual(definition["description"], "Look up data")
+                self.assertEqual(definition["parameters"]["type"], "object")
+                async with self.app.state.database.sessions() as session:
+                    await FunctionService(session).update(
+                        UUID(tool["id"]), {"revision_id": UUID(replacement["id"])}
+                    )
+                return {
+                    "content": "Checking",
+                    "tool_calls": [tool_call("lookup", 1), tool_call("lookup", 2)],
+                }
+            self.assertEqual(messages[-3]["content"], "Checking")
+            self.assertEqual(
+                [message["tool_call_id"] for message in messages[-2:]],
+                ["call_1", "call_2"],
+            )
+            self.assertEqual(
+                [json.loads(message["content"]) for message in messages[-2:]],
+                ["original", "original"],
+            )
+            return {"content": '{"done":true}'}
+
+        with mock_chat(respond), patch.object(InlinePythonRunner, "run", parallel):
+            response = self.client.post("/v1/run/agent", json={})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["output"], {"done": True})
+        self.assertEqual(
+            response.json()["meta"],
+            {"input_tokens": 8, "output_tokens": 4, "total_tokens": 12},
+        )
+        children = self.tool_runs(response.headers["X-Run-Id"])
+        self.assertEqual([child["tool_call_index"] for child in children], [1, 2])
+        self.assertEqual(
+            [child["revision_id"] for child in children],
+            [original["id"], original["id"]],
+        )
+        self.assertTrue(all(child["input"] is None for child in children))
+
+    def test_agent_checks_authentication_scope_and_tool_arguments(self):
+        agent = self.function("agent", public=True)
+        allowed = self.function("allowed")
+        forbidden = self.function("forbidden", public=True)
+        self.revision(allowed["id"])
+        self.revision(forbidden["id"])
+        self.agent_revision(agent, [allowed, forbidden], structured_outputs=False)
+        self.assertEqual(
+            self.client.post(
+                "/v1/run/agent", json={}, headers={"cookie": ""}
+            ).status_code,
+            401,
+        )
+        key = self.client.post(
+            "/v1/keys",
+            json={
+                "name": "agent key",
+                "permissions": ["functions.run", "runs.read"],
+                "function_ids": [agent["id"], allowed["id"]],
+            },
+        ).json()
+
+        async def respond(payload):
+            self.assertEqual(
+                [tool["function"]["name"] for tool in payload["tools"]], ["allowed"]
+            )
+            messages = payload["messages"]
+            if messages[-1]["role"] == "user":
+                return {
+                    "tool_calls": [
+                        tool_call("forbidden", 1),
+                        tool_call("allowed", 2, '{"extra":true}'),
+                        tool_call("allowed", 3),
+                    ]
+                }
+            self.assertEqual(
+                [json.loads(message["content"]) for message in messages[-3:]],
+                [
+                    {"error": {"code": "tool_unavailable"}},
+                    {"error": {"code": "invalid_input"}},
+                    "hello",
+                ],
+            )
+            return {"content": "Done"}
+
+        with mock_chat(respond):
+            response = self.client.post(
+                "/v1/run/agent",
+                json={},
+                headers={"Authorization": f"Bearer {key['secret']}"},
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        (child,) = self.tool_runs(response.headers["X-Run-Id"])
+        self.assertEqual(child["function_id"], allowed["id"])
+        self.assertEqual(child["api_key_id"], key["id"])
+        self.assertEqual(child["tool_call_index"], 3)
+
+    def test_agent_limits_reject_a_batch_before_running_tools(self):
+        agent = self.function("agent")
+        tool = self.function("tool")
+        self.revision(tool["id"])
+
+        async def respond(_payload):
+            return {"tool_calls": [tool_call("tool", 1), tool_call("tool", 2)]}
+
+        for limits in ({"max_steps": 1}, {"max_tool_calls": 1}):
+            with self.subTest(limits=limits), mock_chat(respond):
+                self.agent_revision(agent, [tool], **limits)
+                response = self.client.post("/v1/run/agent", json={})
+                self.assertEqual(response.status_code, 500, response.text)
+                run_id = response.headers["X-Run-Id"]
+                self.assertEqual(
+                    self.client.get(f"/v1/runs/{run_id}").json()["meta"]["code"],
+                    "agent_limit_exceeded",
+                )
+                self.assertEqual(self.tool_runs(run_id), [])
+
+    def test_agent_cancellation_cascades_through_nested_agents(self):
+        outer = self.function("outer")
+        inner = self.function("inner")
+        tool = self.function("slow")
+        self.revision(
+            tool["id"],
+            "import asyncio\nasync def function(input: None) -> str:\n    await asyncio.sleep(60)\n    return 'late'",
+            timeout=None,
+        )
+        self.agent_revision(outer, [inner], timeout=None)
+        self.agent_revision(inner, [outer, tool], timeout=None)
+
+        async def respond(payload):
+            parent = payload["messages"][-1]["content"]
+            target = {"outer": "inner", "inner": "slow"}[parent]
+            self.assertEqual(
+                [tool["function"]["name"] for tool in payload["tools"]], [target]
+            )
+            return {"tool_calls": [tool_call(target, 1)]}
+
+        with mock_chat(respond):
+            submitted = self.client.post("/v1/run/outer?wait=false", json={})
+            self.assertEqual(submitted.status_code, 202, submitted.text)
+            parent_id = submitted.json()["id"]
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                children = self.tool_runs(parent_id)
+                if children:
+                    child_id = children[0]["id"]
+                    grandchildren = self.tool_runs(child_id)
+                    if grandchildren and grandchildren[0]["status"] == "running":
+                        break
+                time.sleep(0.02)
+            else:
+                self.fail("Nested tool was never running")
+            cancelled = self.client.post(f"/v1/runs/{parent_id}/cancel")
+            self.assertEqual(cancelled.status_code, 200, cancelled.text)
+            self.assertEqual(self.tool_runs(parent_id)[0]["status"], "cancelled")
+            self.assertEqual(self.tool_runs(child_id)[0]["status"], "cancelled")
 
     def test_saved_state_survives_restart_and_reads_do_not_execute_code(self):
         function = self.function()

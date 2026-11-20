@@ -101,6 +101,10 @@ class RunRow(Base):
         ForeignKey("api_keys.id", name="fk_runs_api_key")
     )
     revision_id: Mapped[UUID] = mapped_column(ForeignKey("revisions.id"))
+    parent_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("runs.id", name="fk_runs_parent_run")
+    )
+    tool_call_index: Mapped[int | None] = mapped_column(Integer)
     input: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     status: Mapped[str] = mapped_column(String(16))
     output: Mapped[object | None] = mapped_column(JSON(none_as_null=True))
@@ -120,8 +124,14 @@ class RunRow(Base):
             name="ck_runs_status",
         ),
         CheckConstraint("duration IS NULL OR duration >= 0", name="ck_runs_duration"),
+        CheckConstraint(
+            "(parent_run_id IS NULL AND tool_call_index IS NULL) OR "
+            "(parent_run_id IS NOT NULL AND tool_call_index IS NOT NULL AND tool_call_index > 0)",
+            name="ck_runs_tool_call",
+        ),
         Index("ix_runs_revision_created", "revision_id", "created_at", "id"),
         Index("ix_runs_status_heartbeat", "status", "heartbeat_at"),
         Index("ix_runs_created", "created_at", "id"),
         Index("ix_runs_user_created", "user_id", "created_at", "id"),
+        Index("ix_runs_parent_call", "parent_run_id", "tool_call_index", unique=True),
     )

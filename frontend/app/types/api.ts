@@ -21,6 +21,7 @@ export interface FunctionRecord {
   public: boolean
   deleted: boolean
   runnable: boolean
+  uses_tools: boolean
   input_schema: JsonObject
   output_schema: JsonObject
   created_at: string
@@ -34,7 +35,7 @@ export type Implementation
 
 export type RunnerOptions
   = | { type: 'inline_python', timeout: number | null }
-    | { type: 'openai_jinja', timeout: number | null, base_url: string, model: string, structured_outputs: boolean, reasoning_end_tags: string[] }
+    | { type: 'openai_jinja', timeout: number | null, base_url: string, model: string, structured_outputs: boolean, reasoning_end_tags: string[], tool_function_ids: string[], max_steps: number | null, max_tool_calls: number | null }
 
 export interface RevisionRecord {
   id: string
@@ -57,6 +58,9 @@ export interface RunRecord {
   revision_id: string
   user_id: string | null
   api_key_id: string | null
+  parent_run_id: string | null
+  tool_call_index: number | null
+  uses_tools: boolean
   input: JsonObject | null
   status: RunStatus
   output: JsonValue

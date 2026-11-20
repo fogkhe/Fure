@@ -26,7 +26,7 @@ Python and Jinja use the same permissions.
 | `functions.update` | Edit functions, create revisions and choose the current revision |
 | `functions.delete` | Soft-delete and restore functions |
 | `functions.publish` | Change public execution; also requires create/update for the operation |
-| `functions.run` | Execute private functions |
+| `functions.run` | Execute private functions and revisions with agent tools |
 | `runs.read` | Read the user's own runs |
 | `runs.read_all` | Extend `runs.read` to every run, including anonymous/legacy runs |
 | `runs.cancel` | Cancel the user's own active runs (requires `runs.read`) |

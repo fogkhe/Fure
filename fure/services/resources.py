@@ -11,6 +11,7 @@ from fure.core.implementations import BaseImplementation
 from fure.core.revision import Revision
 from fure.core.run import Run
 from fure.core.runners import BaseRunnerOptions
+from fure.core.runners.jinja.openai import OpenAIJinjaRunnerOptions
 from fure.database.mappers import implementation_to_data
 from fure.database.repositories import (
     FunctionRepository,
@@ -166,6 +167,18 @@ class RevisionService:
             function = await require_function(self.functions, function_id, lock=True)
             if function.deleted:
                 raise Conflict("Function is deleted")
+            if (
+                isinstance(runner_options, OpenAIJinjaRunnerOptions)
+                and runner_options.tool_function_ids
+            ):
+                ids = runner_options.tool_function_ids
+                if function_id in ids:
+                    raise InvalidInput("A function cannot be its own tool")
+                for id in ids:
+                    require_function_access(self.principal, id)
+                tools = await self.functions.get_many(ids)
+                if len(tools) != len(ids):
+                    raise NotFound("Tool function not found or deleted")
             try:
                 revision = Revision(implementation, runner_options, function)
             except TypeError as error:
@@ -183,6 +196,8 @@ class RunService:
         self.principal = principal
 
     async def list(self, **filters) -> tuple[list[Run], int]:
+        if (parent_run_id := filters.get("parent_run_id")) is not None:
+            await self.get(parent_run_id)
         if self.principal is not None and self.principal.key_id is not None:
             filters["function_ids"] = self.principal.function_ids or frozenset()
         if self.principal is not None and not self.principal.allows(

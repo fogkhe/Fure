@@ -95,7 +95,9 @@ The selection applies equally to REST: function/revision reads and mutations,
 execution by UUID or name, and run-history reads/cancellation. Out-of-scope direct
 requests return 404; lists and pagination totals contain only accessible records.
 Public functions do not bypass restrictions or `functions.run` for a supplied API key.
-Anonymous public REST execution and browser sessions retain their existing behavior.
+Revisions with [agent tools](api.md#agent-runs) require authentication, including
+on the public REST alias. An MCP key must include each function it wants an agent
+to access in addition to the agent itself.
 
 ## Upgrade
 

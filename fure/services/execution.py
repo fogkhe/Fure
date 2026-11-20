@@ -1,7 +1,9 @@
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from time import monotonic
 from uuid import UUID, uuid7
 
@@ -11,12 +13,14 @@ from sqlalchemy import and_, or_, select, update
 
 from fure.core.auth import Permission, Principal
 from fure.core.errors import InputValidationError
+from fure.core.revision import Revision
 from fure.core.run import CancelRunMeta, ErrorRunMeta, Run, RunStatus
 from fure.core.runners import (
     InlinePythonRunner,
     OpenAIJinjaRunner,
     OpenAIJinjaRunnerOptions,
 )
+from fure.core.runners.jinja.openai import AgentLimitExceeded, OpenAIJinjaTool
 from fure.core.types import JSONValue
 from fure.database.connection import Database
 from fure.database.mappers import meta_to_data
@@ -37,12 +41,21 @@ from fure.services.errors import (
     InvalidInput,
     NotFound,
     ProviderFailed,
+    ServiceError,
     Unauthorized,
     Unavailable,
 )
 from fure.services.variables import VariableService
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class ToolInvocation:
+    revision: Revision
+    parent_run_id: UUID
+    index: int
+    ancestors: frozenset[UUID]
 
 
 class ExecutionService:
@@ -111,9 +124,29 @@ class ExecutionService:
         *,
         principal: Principal | None = None,
     ) -> Run:
+        run, _ = await self._start_run(function, input, principal)
+        return run
+
+    async def _start_run(
+        self,
+        function: UUID | str,
+        input: dict[str, JSONValue] | None,
+        principal: Principal | None,
+        *,
+        invocation: ToolInvocation | None = None,
+    ) -> tuple[Run, asyncio.Task[Run]]:
         if self._closing:
             raise Unavailable("Application is shutting down")
         async with self.database.sessions.begin() as session:
+            runs = RunRepository(session)
+            if invocation is not None and not await runs.transition(
+                invocation.parent_run_id,
+                [RunStatus.RUNNING.value],
+                status=RunStatus.RUNNING.value,
+            ):
+                raise ExecutionCancelled(
+                    "Parent execution was cancelled", code="cancelled"
+                )
             repository = FunctionRepository(session)
             function = (
                 await repository.get(function, lock=True)
@@ -123,14 +156,21 @@ class ExecutionService:
             if function is None or function.deleted:
                 raise NotFound("Function not found or deleted")
             require_function_access(principal, function.id)
-            if not function.public or (
-                principal is not None and principal.key_id is not None
-            ):
+            revision = (
+                invocation.revision if invocation is not None else function.revision
+            )
+            agent = revision is not None and self._uses_tools(revision.runner_options)
+            requires_permission = (
+                not function.public
+                or agent
+                or invocation is not None
+                or (principal is not None and principal.key_id is not None)
+            )
+            if requires_permission:
                 if principal is None:
                     raise Unauthorized("Authentication required")
                 if not principal.allows(Permission.FUNCTIONS_RUN):
                     raise Forbidden("Permission required: functions.run")
-            revision = function.revision
             if not function.runnable or revision is None:
                 raise Conflict("Function is disabled or has no current revision")
             run = Run(
@@ -138,15 +178,20 @@ class ExecutionService:
                 input,
                 user_id=principal.user.id if principal else None,
                 api_key_id=principal.key_id if principal else None,
+                parent_run_id=invocation.parent_run_id if invocation else None,
+                tool_call_index=invocation.index if invocation else None,
             )
-            await RunRepository(session).add(run, self.worker_id)
+            await runs.add(run, self.worker_id)
         if self._closing:
             await self._cancel_record(run.id)
             raise Unavailable("Application is shutting down", run_id=run.id)
-        task = asyncio.create_task(self._perform(run), name=f"fure-run-{run.id}")
+        ancestors = invocation.ancestors if invocation else frozenset()
+        task = asyncio.create_task(
+            self._perform(run, principal, ancestors), name=f"fure-run-{run.id}"
+        )
         self._tasks[run.id] = task
         task.add_done_callback(lambda finished: self._forget(run.id, finished))
-        return run
+        return run, task
 
     async def execute(
         self,
@@ -155,8 +200,10 @@ class ExecutionService:
         *,
         principal: Principal | None = None,
     ) -> Run:
-        run = await self.submit(function, input, principal=principal)
-        task = self._tasks[run.id]
+        run, task = await self._start_run(function, input, principal)
+        return await self._wait_for_run(run, task)
+
+    async def _wait_for_run(self, run: Run, task: asyncio.Task[Run]) -> Run:
         try:
             return await asyncio.shield(task)
         except asyncio.CancelledError:
@@ -177,6 +224,77 @@ class ExecutionService:
             raise ExecutionCancelled(
                 "Execution was cancelled", code="cancelled", run_id=run.id
             ) from None
+
+    @staticmethod
+    def _uses_tools(options) -> bool:
+        return isinstance(options, OpenAIJinjaRunnerOptions) and bool(
+            options.tool_function_ids
+        )
+
+    async def _agent_tools(
+        self,
+        run: Run,
+        options: OpenAIJinjaRunnerOptions,
+        principal: Principal,
+        ancestors: frozenset[UUID],
+    ) -> tuple[OpenAIJinjaTool, ...]:
+        ancestors = ancestors | {run.revision.function.id}
+        ids = tuple(
+            id for id in options.tool_function_ids if principal.allows_function(id)
+        )
+        if not ids:
+            return ()
+        async with self.database.sessions() as session:
+            functions = await FunctionRepository(session).get_many(ids)
+        return tuple(
+            OpenAIJinjaTool(
+                name=function.name,
+                description=function.description,
+                input_schema=function.input_schema,
+                execute=partial(
+                    self._execute_tool, function.revision, run.id, principal, ancestors
+                ),
+            )
+            for function in functions
+            if function.runnable and function.id not in ancestors
+        )
+
+    async def _execute_tool(
+        self,
+        revision: Revision,
+        parent_run_id: UUID,
+        principal: Principal,
+        ancestors: frozenset[UUID],
+        input: dict[str, JSONValue] | None,
+        index: int,
+    ) -> JSONValue:
+        try:
+            # Resolve a submission already in progress before cancelling its run.
+            submission = asyncio.create_task(
+                self._start_run(
+                    revision.function.id,
+                    input,
+                    principal,
+                    invocation=ToolInvocation(
+                        revision, parent_run_id, index, ancestors
+                    ),
+                )
+            )
+            try:
+                run, task = await asyncio.shield(submission)
+            except asyncio.CancelledError:
+                try:
+                    run, task = await submission
+                except ServiceError:
+                    pass
+                else:
+                    task.cancel()
+                    await asyncio.shield(self._cancel_record(run.id))
+                raise
+            return (await self._wait_for_run(run, task)).output
+        except ServiceError as error:
+            code = error.code if error.code != "internal_error" else "tool_unavailable"
+            return {"error": {"code": code}}
 
     def _forget(self, id: UUID, task: asyncio.Task[Run]) -> None:
         self._tasks.pop(id, None)
@@ -212,14 +330,19 @@ class ExecutionService:
         now = datetime.now(UTC)
         async with self.database.sessions.begin() as session:
             repository = RunRepository(session)
+            values = {
+                "status": RunStatus.CANCELLED.value,
+                "meta": meta_to_data(CancelRunMeta()),
+                "finished_at": now,
+                "updated_at": now,
+            }
             changed = await repository.transition(
                 id,
                 ACTIVE_STATUSES,
-                status=RunStatus.CANCELLED.value,
-                meta=meta_to_data(CancelRunMeta()),
-                finished_at=now,
-                updated_at=now,
+                **values,
             )
+            if changed:
+                await repository.cancel_descendants(id, **values)
             if require_active and not changed:
                 if (
                     await session.scalar(select(RunRow.id).where(RunRow.id == id))
@@ -228,7 +351,9 @@ class ExecutionService:
                     raise NotFound("Run not found")
                 raise Conflict("Run has already finished")
 
-    async def _perform(self, run: Run) -> Run:
+    async def _perform(
+        self, run: Run, principal: Principal | None, ancestors: frozenset[UUID]
+    ) -> Run:
         start = monotonic()
         has_secrets = False
         try:
@@ -245,20 +370,27 @@ class ExecutionService:
             if not changed:
                 raise asyncio.CancelledError
             options = run.revision.runner_options
-            runner = (
-                OpenAIJinjaRunner(options)
-                if isinstance(options, OpenAIJinjaRunnerOptions)
-                else InlinePythonRunner(options)
-            )
             async with asyncio.timeout(options.timeout):
                 implementation = run.revision.implementation
+                variables = None
                 if implementation.accepts_vars:
                     variables, has_secrets = await self.variables.execution_values()
-                    result = await runner.run(
-                        implementation, run.input, variables=variables
+                if isinstance(options, OpenAIJinjaRunnerOptions):
+                    tools = None
+                    if options.tool_function_ids:
+                        assert (
+                            principal is not None
+                        )  # Verified when the run was submitted.
+                        tools = await self._agent_tools(
+                            run, options, principal, ancestors
+                        )
+                    result = await OpenAIJinjaRunner(options).run(
+                        implementation, run.input, variables=variables, tools=tools
                     )
                 else:
-                    result = await runner.run(implementation, run.input)
+                    result = await InlinePythonRunner(options).run(
+                        implementation, run.input, variables=variables
+                    )
             json.dumps(result.output, allow_nan=False)
             run.succeed(result.output, result.meta, result.duration)
             async with self.database.sessions.begin() as session:
@@ -293,6 +425,10 @@ class ExecutionService:
             elif isinstance(error, APIError):
                 failure = ProviderFailed(
                     "LLM provider request failed", code="provider_error", run_id=run.id
+                )
+            elif isinstance(error, AgentLimitExceeded):
+                failure = ExecutionFailed(
+                    str(error), code="agent_limit_exceeded", run_id=run.id
                 )
             elif isinstance(error, Unavailable):
                 failure = Unavailable(

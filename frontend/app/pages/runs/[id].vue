@@ -141,6 +141,14 @@ onBeforeUnmount(() => clearInterval(timer))
         :value="record.meta"
         :title="t('ui.metadata')"
       />
+      <UCard v-if="record.uses_tools">
+        <template #header>
+          <h2 class="font-semibold text-highlighted">
+            {{ t('agent.toolCalls') }}
+          </h2>
+        </template>
+        <RunHistory :parent-run-id="record.id" />
+      </UCard>
       <UCard>
         <dl class="grid gap-4 text-sm sm:grid-cols-2">
           <div>
@@ -157,6 +165,17 @@ onBeforeUnmount(() => clearInterval(timer))
                 :to="`/functions/${record.function_id}?tab=revisions&revision_id=${record.revision_id}`"
                 class="font-mono break-all text-primary hover:underline"
               >{{ record.revision_id }}</NuxtLink>
+            </dd>
+          </div>
+          <div v-if="record.parent_run_id">
+            <dt class="text-muted">
+              {{ t('agent.parentRun') }}
+            </dt>
+            <dd class="mt-1">
+              <NuxtLink
+                :to="`/runs/${record.parent_run_id}`"
+                class="font-mono break-all text-primary hover:underline"
+              >{{ record.parent_run_id }}</NuxtLink>
             </dd>
           </div>
         </dl><UButton

@@ -52,6 +52,7 @@ class FunctionResponse(BaseModel):
     public: bool
     deleted: bool
     runnable: bool
+    uses_tools: bool
     input_schema: dict[str, JsonValue]
     output_schema: dict[str, JsonValue]
     created_at: AwareDatetime
